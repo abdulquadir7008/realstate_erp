@@ -27,4 +27,4 @@ FROM base AS runtime
 ENV NODE_ENV=production
 COPY --from=build /app ./
 EXPOSE 4010
-CMD ["sh", "-c", "pnpm --filter @re/api db:deploy && (pnpm --filter @re/api db:seed || true) && node apps/api/dist/apps/api/src/main.js"]
+CMD ["sh", "-c", "node apps/api/dist/apps/api/src/main.js"]
