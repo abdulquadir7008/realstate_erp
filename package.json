@@ -1,0 +1,22 @@
+{
+  "name": "realestate-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-tenant Real Estate ERP & CRM SaaS platform",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter @re/api --filter @re/web dev",
+    "dev:api": "pnpm --filter @re/api dev",
+    "dev:web": "pnpm --filter @re/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r --if-present test",
+    "db:migrate": "pnpm --filter @re/api db:migrate",
+    "db:deploy": "pnpm --filter @re/api db:deploy",
+    "db:seed": "pnpm --filter @re/api db:seed",
+    "db:generate": "pnpm --filter @re/api db:generate"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@9.15.9"
+}
