@@ -26,4 +26,4 @@ services:
         value: https://your-frontend.vercel.app
       - key: AI_ENABLED
         value: "false"
-    healthCheckPath: /api/v1/auth/login
+    healthCheckPath: /api/v1/health
