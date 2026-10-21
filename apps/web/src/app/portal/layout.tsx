@@ -104,7 +104,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 lg:block">{nav}</aside>
+      <aside className="sticky top-0 z-30 hidden h-screen w-64 shrink-0 lg:block">{nav}</aside>
       <AnimatePresence>
         {mobileOpen ? (
           <>

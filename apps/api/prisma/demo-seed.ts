@@ -57,22 +57,26 @@ const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
 const daysAhead = (n: number) => new Date(Date.now() + n * 86_400_000);
 
 async function ensureUser(orgId: string, email: string, first: string, last: string, roleCode: string, designation?: string) {
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return existing;
-  const user = await prisma.user.create({
-    data: {
-      email,
-      firstName: first,
-      lastName: last,
-      passwordHash: await hash('Passw0rd1', 12),
-      scope: 'TENANT',
-      organizationId: orgId,
-      status: 'ACTIVE',
-      designation: designation ?? null,
-    },
-  });
+  let user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    user = await prisma.user.create({
+      data: {
+        email,
+        firstName: first,
+        lastName: last,
+        passwordHash: await hash('Passw0rd1', 12),
+        scope: 'TENANT',
+        organizationId: orgId,
+        status: 'ACTIVE',
+        designation: designation ?? null,
+      },
+    });
+  }
   const role = await prisma.role.findFirst({ where: { organizationId: orgId, code: roleCode } });
-  if (role) await prisma.userRole.create({ data: { userId: user.id, roleId: role.id } });
+  if (role) {
+    const link = await prisma.userRole.findFirst({ where: { userId: user.id, roleId: role.id } });
+    if (!link) await prisma.userRole.create({ data: { userId: user.id, roleId: role.id } });
+  }
   return user;
 }
 
@@ -83,6 +87,43 @@ async function main() {
     process.exit(1);
   }
   const orgId = org.id;
+
+  // ---------- projects (created when the tenant has none yet)
+  const projectCount = await prisma.project.count({ where: { organizationId: orgId } });
+  if (projectCount === 0) {
+    const PROJECT_SEED = [
+      {
+        code: 'SKY',
+        name: 'Skyline Residences',
+        description: 'Premium 2 & 3 BHK towers with skyline views, clubhouse and podium garden.',
+        type: 'RESIDENTIAL',
+        status: 'IN_PROGRESS',
+        address: 'LBS Marg, Mulund West',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        totalBudget: 480_000_000,
+        startDate: daysAgo(210),
+        endDate: daysAhead(420),
+      },
+      {
+        code: 'LVE',
+        name: 'Lakeview Enclave',
+        description: 'Lakeside apartments and villas with landscaped promenade and jetties.',
+        type: 'MIXED_USE',
+        status: 'IN_PROGRESS',
+        address: 'Powai Lake Road, Powai',
+        city: 'Mumbai',
+        state: 'Maharashtra',
+        totalBudget: 310_000_000,
+        startDate: daysAgo(75),
+        endDate: daysAhead(540),
+      },
+    ];
+    for (const p of PROJECT_SEED) {
+      await prisma.project.create({ data: { ...p, organizationId: orgId } as any });
+    }
+    console.log('Demo projects created.');
+  }
 
   // ---------- staff + portal users
   const staffUsers: Record<string, string> = {};
