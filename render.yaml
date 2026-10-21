@@ -23,7 +23,7 @@ services:
       - key: JWT_REFRESH_SECRET
         sync: false
       - key: CORS_ORIGINS
-        value: https://your-frontend.vercel.app
+        value: https://realstate-erp.vercel.app
       - key: AI_ENABLED
         value: "false"
     healthCheckPath: /api/v1/health
