@@ -1,10 +1,11 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { SessionUser } from '@re/shared';
 import { env } from '../../config/configuration';
 import { PrismaService } from '../../prisma/prisma.service';
 import { IS_PUBLIC_KEY } from '../decorators';
+import { SubscriptionStatus, TenantAccessService } from '../access/tenant-access.service';
 
 type AccessPayload = SessionUser & { sub: string };
 
@@ -14,6 +15,7 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
+    private readonly access: TenantAccessService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -37,11 +39,48 @@ export class JwtAuthGuard implements CanActivate {
 
     const user = await this.prisma.user.findUnique({
       where: { id: payload.sub },
-      select: { id: true, status: true, deletedAt: true },
+      select: {
+        id: true,
+        status: true,
+        deletedAt: true,
+        organization: {
+          select: {
+            id: true,
+            status: true,
+            subscriptions: {
+              orderBy: { createdAt: 'desc' },
+              take: 1,
+              select: { id: true, status: true, trialEndsAt: true, currentPeriodEnd: true },
+            },
+          },
+        },
+      },
     });
     if (!user || user.deletedAt || user.status === 'SUSPENDED') {
       if (isPublic) return true;
       throw new UnauthorizedException({ code: 'USER_DISABLED', message: 'Account is disabled' });
+    }
+
+    if (user.organization) {
+      const sub = user.organization.subscriptions[0] ?? null;
+      const decision = this.access.decide(
+        user.organization.status,
+        sub
+          ? {
+              id: sub.id,
+              status: sub.status as SubscriptionStatus,
+              trialEndsAt: sub.trialEndsAt,
+              currentPeriodEnd: sub.currentPeriodEnd,
+            }
+          : null,
+      );
+      if (!decision.allowed) {
+        if (isPublic) return true;
+        throw new ForbiddenException({
+          code: decision.code ?? 'ACCESS_DENIED',
+          message: decision.message ?? 'Access denied',
+        });
+      }
     }
 
     request.user = {

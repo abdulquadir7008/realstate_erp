@@ -440,6 +440,7 @@ model Organization {
   gstin          String?
   pan            String?
   status         OrgStatus @default(PENDING)
+  statusReason   String?
   settings       Json      @default("{}") // currency, locale, tax, fiscal year, branding, notifications
   trialEndsAt    DateTime?
   approvedAt     DateTime?
@@ -1188,6 +1189,7 @@ model Payment {
   receipts    Receipt[]
   booking     Booking? @relation(fields: [bookingId], references: [id])
 
+  @@unique([organizationId, gateway, gatewayPaymentId])
   @@index([organizationId, paidAt])
   @@index([organizationId, status])
   @@index([customerId])

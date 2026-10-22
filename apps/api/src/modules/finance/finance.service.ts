@@ -220,69 +220,131 @@ export class FinanceService {
   }) {
     const orgId = requireOrgId();
     const paidAt = args.paidAt ?? new Date();
+    const gatewayPaymentId = args.gatewayPaymentId?.trim() || null;
+
+    if (gatewayPaymentId) {
+      const existing = await this.findExistingGatewayPayment(orgId, args.gateway, gatewayPaymentId);
+      if (existing) return existing;
+    }
+
     const receiptNumber = await nextCode(this.prisma, 'RECEIPT');
 
-    return this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          organizationId: orgId,
-          bookingId: args.bookingId,
-          customerId: args.customerId,
-          projectId: args.projectId,
-          amount: args.amount,
-          mode: args.mode as any,
-          status: 'SUCCESS',
-          gateway: args.gateway as any,
-          gatewayPaymentId: args.gatewayPaymentId,
-          reference: args.reference,
-          paidAt,
-          notes: args.notes,
-          collectedBy: actorId(),
-        },
-      });
-
-      // determine allocations
-      let allocations = args.allocations?.map((a) => ({ demandId: a.demandId, amount: a.amount }));
-      if (!allocations || allocations.length === 0) {
-        allocations = await this.autoAllocate(tx, args.customerId, args.bookingId, args.amount);
-      }
-
-      let allocatedTotal = 0;
-      for (const alloc of allocations) {
-        const demand = await tx.paymentDemand.findFirst({ where: { id: alloc.demandId } });
-        if (!demand) continue;
-        const remaining = Number(demand.totalAmount) - Number(demand.paidAmount);
-        const applied = Math.min(alloc.amount, remaining);
-        if (applied <= 0) continue;
-
-        await tx.paymentAllocation.create({
-          data: { organizationId: orgId, paymentId: payment.id, demandId: demand.id, amount: applied, type: 'PAYMENT' },
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const payment = await tx.payment.create({
+          data: {
+            organizationId: orgId,
+            bookingId: args.bookingId,
+            customerId: args.customerId,
+            projectId: args.projectId,
+            amount: args.amount,
+            mode: args.mode as any,
+            status: 'SUCCESS',
+            gateway: args.gateway as any,
+            gatewayPaymentId,
+            reference: args.reference,
+            paidAt,
+            notes: args.notes,
+            collectedBy: actorId(),
+          },
         });
 
-        const newPaid = Number(demand.paidAmount) + applied;
-        const status = newPaid >= Number(demand.totalAmount) ? 'PAID' : 'PARTIAL';
-        await tx.paymentDemand.update({ where: { id: demand.id }, data: { paidAmount: newPaid, status } });
-        allocatedTotal += applied;
-      }
+        // determine allocations
+        let allocations = args.allocations?.map((a) => ({ demandId: a.demandId, amount: a.amount }));
+        if (!allocations || allocations.length === 0) {
+          allocations = await this.autoAllocate(tx, args.customerId, args.bookingId, args.amount);
+        }
 
-      const receipt = await tx.receipt.create({
-        data: {
-          organizationId: orgId,
-          receiptNumber,
-          bookingId: args.bookingId,
-          customerId: args.customerId,
-          amount: allocatedTotal || args.amount,
-          mode: args.mode as any,
-          reference: args.reference,
-          issuedAt: paidAt,
-          issuedBy: actorId(),
-          notes: args.notes,
-        },
+        let allocatedTotal = 0;
+        let unallocated = args.amount;
+        for (const alloc of allocations) {
+          if (unallocated <= 0) break;
+
+          // Lock the demand row so concurrent payments serialize their balance updates.
+          const locked = await tx.$queryRaw<
+            { id: string; paidAmount: unknown; totalAmount: unknown; status: string }[]
+          >`
+            SELECT "id", "paidAmount", "totalAmount", "status"
+            FROM "PaymentDemand"
+            WHERE "id" = ${alloc.demandId}::uuid
+              AND "organizationId" = ${orgId}::uuid
+              AND "status" IN ('DUE', 'PARTIAL', 'OVERDUE')
+              AND "paidAmount" < "totalAmount"
+            FOR UPDATE
+          `;
+          const demand = locked[0];
+          if (!demand) continue;
+
+          const remaining = Number(demand.totalAmount) - Number(demand.paidAmount);
+          const applied = Math.min(alloc.amount, remaining, unallocated);
+          if (applied <= 0) continue;
+
+          const newPaid = Number(demand.paidAmount) + applied;
+          const status = newPaid >= Number(demand.totalAmount) ? 'PAID' : 'PARTIAL';
+          const updated = await tx.paymentDemand.updateMany({
+            where: { id: demand.id },
+            data: { paidAmount: newPaid, status },
+          });
+          if (updated.count !== 1) {
+            throw errors.conflict('Demand balance changed while applying the payment');
+          }
+
+          await tx.paymentAllocation.create({
+            data: { organizationId: orgId, paymentId: payment.id, demandId: demand.id, amount: applied, type: 'PAYMENT' },
+          });
+
+          allocatedTotal += applied;
+          unallocated -= applied;
+        }
+
+        const receipt = await tx.receipt.create({
+          data: {
+            organizationId: orgId,
+            receiptNumber,
+            bookingId: args.bookingId,
+            customerId: args.customerId,
+            amount: allocatedTotal || args.amount,
+            mode: args.mode as any,
+            reference: args.reference,
+            issuedAt: paidAt,
+            issuedBy: actorId(),
+            notes: args.notes,
+          },
+        });
+        await tx.receipt.update({ where: { id: receipt.id }, data: { paymentId: payment.id } });
+
+        return { paymentId: payment.id, receiptId: receipt.id, receiptNumber, allocated: allocatedTotal };
       });
-      await tx.receipt.update({ where: { id: receipt.id }, data: { paymentId: payment.id } });
+    } catch (e) {
+      if (gatewayPaymentId && this.isUniqueConstraintError(e)) {
+        const existing = await this.findExistingGatewayPayment(orgId, args.gateway, gatewayPaymentId);
+        if (existing) return existing;
+      }
+      throw e;
+    }
+  }
 
-      return { paymentId: payment.id, receiptId: receipt.id, receiptNumber, allocated: allocatedTotal };
+  private async findExistingGatewayPayment(orgId: string, gateway: string, gatewayPaymentId: string) {
+    const payment = await this.prisma.payment.findFirst({
+      where: { organizationId: orgId, gateway: gateway as any, gatewayPaymentId },
+      include: { allocations: true, receipts: true },
     });
+    if (!payment) return null;
+
+    const receipt = payment.receipts[0];
+    const allocated = payment.allocations
+      .filter((a) => a.type === 'PAYMENT')
+      .reduce((sum, a) => sum + Number(a.amount), 0);
+    return {
+      paymentId: payment.id,
+      receiptId: receipt?.id ?? null,
+      receiptNumber: receipt?.receiptNumber ?? null,
+      allocated,
+    };
+  }
+
+  private isUniqueConstraintError(e: unknown): boolean {
+    return typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002';
   }
 
   private async autoAllocate(tx: any, customerId: string, bookingId: string | null, amount: number) {

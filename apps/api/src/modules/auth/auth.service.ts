@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../prisma/prisma.service';
+import { TenantAccessService } from '../../common/access/tenant-access.service';
 import { LoginInput, RegisterOrganizationInput, SessionUser, ROLE_TEMPLATES, roleHasPermission } from '@re/shared';
 import { errors } from '../../common/api-error';
 import { hash, compare } from 'bcryptjs';
@@ -10,7 +11,11 @@ import { addDays } from 'date-fns';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    private readonly access: TenantAccessService,
+  ) {}
 
   async register(input: RegisterOrganizationInput) {
     const exists = await this.prisma.organization.findFirst({
@@ -97,7 +102,10 @@ export class AuthService {
     const ok = await compare(input.password, user.passwordHash);
     if (!ok) throw errors.unauthorized('Invalid credentials');
 
-    const session = await this.buildSession(user.id, user.organizationId ?? null);
+    const orgId = user.organizationId ?? null;
+    if (orgId) await this.access.assertAccess(orgId);
+
+    const session = await this.buildSession(user.id, orgId);
     const tokens = await this.issueTokens(session);
     return { tokens, user: session };
   }

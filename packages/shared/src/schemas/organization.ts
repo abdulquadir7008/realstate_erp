@@ -16,8 +16,14 @@ export const updateOrganizationSchema = z.object({
   pan: z.string().trim().max(12).optional().nullable(),
 });
 
-export const organizationSettingsSchema = z.object({
-  currency: z.string().trim().length(3).default('INR'),
+export const organizationStatusSchema = z.object({
+  status: z.enum(['PENDING', 'ACTIVE', 'SUSPENDED', 'REJECTED', 'CANCELLED']),
+  reason: z.string().trim().max(250).optional().nullable(),
+});
+
+export type OrganizationStatusInput = z.infer<typeof organizationStatusSchema>;
+
+export const organizationSettingsSchema = z.object({  currency: z.string().trim().length(3).default('INR'),
   locale: z.string().trim().max(12).default('en-IN'),
   gstPercent: z.coerce.number().min(0).max(100).default(18),
   cgstPercent: z.coerce.number().min(0).max(100).default(9),

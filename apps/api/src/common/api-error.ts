@@ -18,6 +18,7 @@ export const errors = {
     new ApiException('UNAUTHORIZED', message, HttpStatus.UNAUTHORIZED),
   forbidden: (message = 'You do not have permission to perform this action') =>
     new ApiException('FORBIDDEN', message, HttpStatus.FORBIDDEN),
+  denied: (code: string, message: string) => new ApiException(code, message, HttpStatus.FORBIDDEN),
   notFound: (entity = 'Resource') => new ApiException('NOT_FOUND', `${entity} not found`, HttpStatus.NOT_FOUND),
   conflict: (message: string, details?: unknown) =>
     new ApiException('CONFLICT', message, HttpStatus.CONFLICT, details),

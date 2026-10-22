@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { env } from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
+import { AccessModule } from './common/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ModulesModule } from './modules/modules.module';
 import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
@@ -24,6 +25,7 @@ import { HealthController } from './health.controller';
       useFactory: () => ({ secret: env().JWT_ACCESS_SECRET, signOptions: { expiresIn: env().JWT_ACCESS_TTL as any } }),
     }),
     PrismaModule,
+    AccessModule,
     AuthModule,
     ModulesModule,
   ],

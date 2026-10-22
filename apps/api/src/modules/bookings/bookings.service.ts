@@ -73,6 +73,14 @@ export class BookingsService {
     return booking;
   }
 
+  private async claimUnit(tx: any, unitId: string, status: 'RESERVED' | 'BOOKED', heldUntil: Date | null) {
+    const claimed = await tx.unit.updateMany({
+      where: { id: unitId, deletedAt: null, status: 'AVAILABLE' },
+      data: { status, heldUntil, version: { increment: 1 } },
+    });
+    if (claimed.count !== 1) throw errors.conflict('Unit is no longer available');
+  }
+
   async reserve(input: ReserveUnitInput) {
     const unit = await this.prisma.unit.findFirst({ where: { id: input.unitId, deletedAt: null } });
     if (!unit) throw errors.notFound('Unit');
@@ -85,6 +93,7 @@ export class BookingsService {
     const reservedUntil = new Date(Date.now() + input.holdMinutes * 60_000);
 
     return this.prisma.$transaction(async (tx) => {
+      await this.claimUnit(tx, unit.id, 'RESERVED', reservedUntil);
       const booking = await tx.booking.create({
         data: {
           organizationId: orgId,
@@ -100,7 +109,6 @@ export class BookingsService {
           createdBy: actorId(),
         },
       });
-      await tx.unit.update({ where: { id: unit.id }, data: { status: 'RESERVED', heldUntil: reservedUntil, version: { increment: 1 } } });
       await tx.bookingStatusHistory.create({
         data: { bookingId: booking.id, toStatus: 'RESERVED', changedBy: actorId(), remarks: 'Unit reserved' },
       });
@@ -111,7 +119,7 @@ export class BookingsService {
   async create(input: CreateBookingInput) {
     const unit = await this.prisma.unit.findFirst({ where: { id: input.unitId, deletedAt: null } });
     if (!unit) throw errors.notFound('Unit');
-    if (unit.status === 'BOOKED' || unit.status === 'SOLD' || unit.status === 'AGREEMENT_PENDING') {
+    if (unit.status !== 'AVAILABLE') {
       throw errors.conflict(`Unit is not available (current status: ${unit.status})`);
     }
     const customer = await this.prisma.customer.findFirst({ where: { id: input.customerId, deletedAt: null } });
@@ -125,6 +133,7 @@ export class BookingsService {
     const status = input.confirm ? 'CONFIRMED' : 'DRAFT';
 
     const booking = await this.prisma.$transaction(async (tx) => {
+      await this.claimUnit(tx, unit.id, input.confirm ? 'BOOKED' : 'RESERVED', null);
       const created = await tx.booking.create({
         data: {
           organizationId: orgId,
@@ -152,15 +161,6 @@ export class BookingsService {
         data: { bookingId: created.id, toStatus: status, changedBy: actorId(), remarks: 'Booking created' },
       });
 
-      if (input.confirm) {
-        await tx.unit.update({
-          where: { id: unit.id },
-          data: { status: 'BOOKED', heldUntil: null, version: { increment: 1 } },
-        });
-      } else {
-        await tx.unit.update({ where: { id: unit.id }, data: { status: 'RESERVED', version: { increment: 1 } } });
-      }
-
       return created;
     });
 
@@ -174,11 +174,18 @@ export class BookingsService {
     if (booking.status === 'CANCELLED' || booking.status === 'REFUNDED') throw errors.conflict('Cancelled bookings cannot be confirmed');
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.booking.update({
-        where: { id },
+      const transitioned = await tx.booking.updateMany({
+        where: { id, deletedAt: null, status: { in: ['DRAFT', 'RESERVED', 'PENDING_APPROVAL'] } },
         data: { status: 'CONFIRMED', agreementDate: input.agreementDate ?? booking.agreementDate, notes: input.notes ?? booking.notes },
       });
-      await tx.unit.update({ where: { id: booking.unitId }, data: { status: 'BOOKED', heldUntil: null, version: { increment: 1 } } });
+      if (transitioned.count !== 1) throw errors.conflict('Booking can no longer be confirmed');
+
+      const claimed = await tx.unit.updateMany({
+        where: { id: booking.unitId, deletedAt: null, status: { in: ['AVAILABLE', 'ON_HOLD', 'RESERVED'] } },
+        data: { status: 'BOOKED', heldUntil: null, version: { increment: 1 } },
+      });
+      if (claimed.count !== 1) throw errors.conflict('Unit can no longer be confirmed');
+
       await tx.bookingStatusHistory.create({
         data: { bookingId: id, fromStatus: booking.status, toStatus: 'CONFIRMED', changedBy: actorId(), remarks: 'Booking confirmed' },
       });
@@ -194,11 +201,16 @@ export class BookingsService {
     if (booking.status === 'CANCELLED') throw errors.conflict('Booking is already cancelled');
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.booking.update({
-        where: { id },
+      const cancelled = await tx.booking.updateMany({
+        where: { id, deletedAt: null, status: { notIn: ['CANCELLED', 'REFUNDED', 'COMPLETED'] } },
         data: { status: 'CANCELLED', cancelledAt: new Date(), cancelReason: input.reason },
       });
-      await tx.unit.update({ where: { id: booking.unitId }, data: { status: 'AVAILABLE', heldUntil: null, version: { increment: 1 } } });
+      if (cancelled.count !== 1) throw errors.conflict('Booking can no longer be cancelled');
+
+      await tx.unit.updateMany({
+        where: { id: booking.unitId, status: { in: ['ON_HOLD', 'RESERVED', 'BOOKED', 'AGREEMENT_PENDING'] } },
+        data: { status: 'AVAILABLE', heldUntil: null, version: { increment: 1 } },
+      });
       await tx.paymentDemand.updateMany({ where: { bookingId: id, status: { in: ['DUE', 'PARTIAL', 'OVERDUE'] } }, data: { status: 'CANCELLED' } });
       await tx.bookingStatusHistory.create({
         data: { bookingId: id, fromStatus: booking.status, toStatus: 'CANCELLED', changedBy: actorId(), remarks: input.reason },
