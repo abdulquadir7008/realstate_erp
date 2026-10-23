@@ -18,7 +18,7 @@ Total requirements: 232
 | TND-002 | Bid register | Maintain a tender / bid register capturing tender reference, client, estimated value, submission deadline and current st... | Must | **Missing** | ❌ No implementation found |
 | TND-003 | Qualification Mapping | Map tender qualification criteria against company credentials. | Should | **Missing** | ❌ No implementation found |
 | TND-004 | Risk assessment & contingency | Estimate project risks and contingencies. | Should | **Missing** | ❌ No implementation found |
-| TND-005 | Go / No-Go Approval | Workflow for management approval before bidding. | Must | **Missing** | ❌ No implementation found |
+| TND-005 | Go / No-Go Approval | Workflow for management approval before bidding. | Must | **Partial** | Backend implemented 2026-10-23: Generic approval workflows can model bid go/no-go; tender/bid module integration and UI pending. |
 | TND-006 | Stage tracking | Track each bid through configurable stages (screening, technical, costing, submission, outcome). | Must | **Missing** | ❌ No implementation found |
 | TND-007 | BOQ | Prepare a Bill of Quantities (BOQ) with line items, units, quantities and rates. | Must | **Partial** | Backend implemented 2026-10-23: BOQ/BOQLine models, CRUD/tree/status/recalculate API, Excel import, computed line amount and BOQ total. UI pending. |
 | TND-008 | Rate master | Maintain rate masters and reusable item libraries for BOQ preparation. | Must | **Partial** | Backend implemented 2026-10-23: RateMaster/RateVersion models, CRUD, versioning and effective-date applicable rate lookup. UI/library reuse pending. |
@@ -39,7 +39,7 @@ Total requirements: 232
 | DOC-001 | Register | Maintain a version-controlled drawing and document register. | Must | **Partial** |  |
 | DOC-002 | Transmittals | Maintain a transmittals log. | Should | **Missing** | ❌ No implementation found |
 | DOC-003 | RFI | Maintain an RFI (Request for Information) register. | Should | **Partial** |  |
-| DOC-004 | Approval workflow | Provide document approval workflows. | Must | **Missing** | ❌ No implementation found |
+| DOC-004 | Approval workflow | Provide document approval workflows. | Must | **Partial** | Backend implemented 2026-10-23: Entity-agnostic approval engine can host document approval workflows; document module integration pending. |
 | DOC-005 | Access control | Control document access by project and role. | Must | **Partial** |  |
 | DOC-006 | Search | Provide document search and retrieval. | Must | **Missing** | ❌ No implementation found |
 | DOC-007 | Audit | Maintain an audit trail of document versions and access. | Should | **Missing** | ❌ No implementation found |
@@ -84,15 +84,15 @@ Total requirements: 232
 | PRJ-004 | Progress | Track physical progress % by activity, rolling up to project level. | Must | **Partial** |  |
 | PRJ-005 | S-curve | Produce a planned-vs-actual S-curve and schedule performance indicator. | Must | **Partial** |  |
 | PRJ-006 | Daily logs | Capture daily / periodic site progress logs from the field. | Must | **Partial** |  |
-| PRJ-007 | Budget baseline | Maintain an approved budget baseline per project and per site, broken by cost head. | Must | **Missing** | ❌ No implementation found |
-| PRJ-008 | Cost-to-complete | Track cost-to-complete and cost variance against budget in real time. | Must | **Partial** |  |
-| PRJ-009 | Budget revision | Any upward budget revision must trigger an approval workflow before it takes effect (see BUD). | Must | **Partial** |  |
+| PRJ-007 | Budget baseline | Maintain an approved budget baseline per project and per site, broken by cost head. | Must | **Partial** | Backend implemented 2026-10-23: Project/site budget baselines broken down by cost head via ProjectBudget and ProjectBudgetLine; UI pending. |
+| PRJ-008 | Cost-to-complete | Track cost-to-complete and cost variance against budget in real time. | Must | **Implemented** | Backend implemented 2026-10-23: Cost-to-complete (forecast - actual) and cost variance (amount and %) update from commitments and ledger postings. |
+| PRJ-009 | Budget revision | Any upward budget revision must trigger an approval workflow before it takes effect (see BUD). | Must | **Implemented** | Backend implemented 2026-10-23: Upward revisions require create→submit→approve on BudgetRevision; approval applies changes and recalculates totals. |
 | PRJ-010 | Resource plan | Plan resources, equipment and material against the schedule. | Should | **Missing** | ❌ No implementation found |
 | PRJ-011 | Dashboard | Provide a project dashboard showing health (RAG), progress, cost and cash status. | Must | **Missing** | ❌ No implementation found |
 | PRJ-012 | Alerts | Alert on schedule slippage and milestone delay. | Should | **Partial** |  |
 | PRJ-013 | Multi-project | Provide a consolidated multi-project / multi-site portfolio view. | Must | **Partial** |  |
 | PRJ-014 | Attachments | Attach project documents (drawings, approvals) to the project record. | Must | **Partial** |  |
-| PRJ-015 | Baseline control | Maintain Baseline Plan, Revised Plan and Actual Execution separately; baseline cannot be overwritten. | Must | **Missing** | ❌ No implementation found |
+| PRJ-015 | Baseline control | Maintain Baseline Plan, Revised Plan and Actual Execution separately; baseline cannot be overwritten. | Must | **Partial** | Backend implemented 2026-10-23: Budget baseline is locked after activation, revisions retain original snapshot and revised values; full baseline-vs-revised-vs-actual reporting UI pending. |
 | PRJ-016 | Execution monitoring | Provide monthly, weekly and daily planned vs actual execution quantity monitoring by project, site, WBS and activity. | Must | **Missing** | ❌ No implementation found |
 | PRJ-017 | Slippage & recovery | Alert when actual execution falls behind the approved execution plan and require a recovery plan with responsible person... | Must | **Missing** | ❌ No implementation found |
 | PRJ-018 | Quantity tracking | Track planned quantity, actual quantity, variance quantity and achievement % for each activity. | Must | **Partial** |  |
@@ -116,8 +116,8 @@ Total requirements: 232
 | PRC-003 | RFQ | Issue RFQ to multiple vendors and capture their quotations. | Must | **Missing** | ❌ No implementation found |
 | PRC-004 | Comparative statement | Generate a comparative statement (CS) across received quotations. | Must | **Missing** | ❌ No implementation found |
 | PRC-005 | Vendor evaluation | Evaluate and score vendors on defined criteria. | Should | **Partial** |  |
-| PRC-006 | PO approval | Create a Purchase Order with multi-level, value-based approval workflow. | Must | **Partial** |  |
-| PRC-007 | Budget check | At PO stage, block and route for approval any purchase that would exceed the project/site budget (see BUD). | Must | **Partial** |  |
+| PRC-006 | PO approval | Create a Purchase Order with multi-level, value-based approval workflow. | Must | **Partial** | Backend implemented 2026-10-23: Approval engine supports PURCHASE_ORDER workflows and value thresholds; PO creation still needs automatic approval-instance start and hard-stop gate. |
+| PRC-007 | Budget check | At PO stage, block and route for approval any purchase that would exceed the project/site budget (see BUD). | Must | **Partial** | Backend implemented 2026-10-23: POST /budgets/check and PO→commitment hooks enforce available budget when hard stops are configured; PO creation itself is not yet blocked/routed. |
 | PRC-008 | Price-escalation check | At PO stage, alert the purchase manager if the rate exceeds the estimated / last-purchased price beyond a configurable t... | Must | **Partial** |  |
 | PRC-009 | GRN | Record Goods Receipt Note (GRN) against a PO with quantity and quality check. | Must | **Partial** |  |
 | PRC-010 | 3-way match | Perform 3-way match (PO-GRN-invoice) before payment. | Must | **Missing** | ❌ No implementation found |
@@ -133,9 +133,9 @@ Total requirements: 232
 | PRC-020 | Supplier commitment | Maintain supplier-wise quantity and value commitment against BOQ/PO. | Must | **Partial** |  |
 | PRC-021 | GRN control | Prevent supplier/GRN quantity from exceeding the corresponding approved PO quantity without approval. | Must | **Partial** |  |
 | PRC-022 | Aggregate BOQ control | Track BOQ quantity vs total supplier PO quantity and alert/block when aggregate commitment exceeds BOQ. | Must | **Partial** |  |
-| PRC-023 | Budget check (value) | Compare PO value against approved project/site/WBS budget and block + approval when budget is exceeded. | Must | **Partial** |  |
+| PRC-023 | Budget check (value) | Compare PO value against approved project/site/WBS budget and block + approval when budget is exceeded. | Must | **Partial** | Backend implemented 2026-10-23: PO totals are compared to active project budget through commitment creation and threshold alerts; pre-creation blocking/approval pending. |
 | PRC-024 | Rate check | Compare purchase rate against budget/estimated/previous purchase rate and trigger configurable alert + approval. | Must | **Partial** |  |
-| PRC-025 | Material budget | Maintain material-wise budget quantity, budget rate and budget amount and compare with procurement commitment and actual... | Must | **Partial** |  |
+| PRC-025 | Material budget | Maintain material-wise budget quantity, budget rate and budget amount and compare with procurement commitment and actual... | Must | **Partial** | Backend implemented 2026-10-23: Budget lines track quantity/rate/amount and commitments/actuals post against them; material-wise reconciliation pending. |
 | PRC-026 | Shortage alert | Provide material shortage alerts based on planned execution requirement, available stock and incoming supply. | Must | **Missing** | ❌ No implementation found |
 | PRC-027 | Wastage control | Track excess material consumption/wastage against approved norms or BOQ quantity. | Must | **Partial** |  |
 | PRC-028 | Inventory visibility | Provide site-wise and project-wise inventory visibility. | Must | **Partial** |  |
@@ -152,29 +152,29 @@ Total requirements: 232
 
 | Req ID | Category | Requirement | Priority | Status | Evidence |
 |--------|----------|-------------|----------|--------|----------|
-| BUD-001 | Baseline | Maintain an approved budget baseline at project and site level. | Must | **Missing** | ❌ No implementation found |
-| BUD-002 | Cost heads | Break the budget by cost head (material, labour, subcontract, overhead). | Must | **Missing** | ❌ No implementation found |
-| BUD-003 | Tracking | Track committed and actual spend against budget in real time. | Must | **Missing** | ❌ No implementation found |
-| BUD-004 | Workflow | Provide configurable approval workflows with multiple levels and value-based routing (e.g. Site Engineer to PM to Financ... | Must | **Missing** | ❌ No implementation found |
-| BUD-005 | Delegation | Support delegation of approval authority and escalation on delay. | Must | **Missing** | ❌ No implementation found |
-| BUD-006 | Blocking trigger | Block a transaction and route it for approval when a defined threshold is breached (not merely warn). | Must | **Missing** | ❌ No implementation found |
-| BUD-007 | Configurable thresholds | Thresholds must be configurable (absolute value and/or percentage) per project, site and cost head. | Must | **Missing** | ❌ No implementation found |
-| BUD-008 | Alerts | Send real-time alerts (in-app, email, mobile/WhatsApp) when a budget or price threshold is approached or breached. | Must | **Missing** | ❌ No implementation found |
-| BUD-009 | Audit trail | Maintain a full audit trail of budget revisions and approvals (requester, original vs revised, justification, approver, ... | Must | **Missing** | ❌ No implementation found |
-| BUD-010 | Scenario A | Budget increase: a revision to a project/site budget takes effect only after the designated authority approves it. | Must | **Missing** | ❌ No implementation found |
-| BUD-011 | Scenario B | Procurement cost increase: if a rate rises above the estimated/previous price beyond the threshold, or spend would excee... | Must | **Missing** | ❌ No implementation found |
-| BUD-012 | Approvals dashboard | Provide a pending-approvals dashboard per user with approval history. | Should | **Missing** | ❌ No implementation found |
-| BUD-013 | Budget hierarchy | Maintain budget at Project - Site - WBS - BOQ - Cost Head level. | Must | **Missing** | ❌ No implementation found |
-| BUD-014 | Cost control | Track Budget - Commitment - Actual - Forecast - Cost to Complete - Variance in real time. | Must | **Missing** | ❌ No implementation found |
-| BUD-015 | WO budget control | Block and route for approval when WO value exceeds approved budget. | Must | **Missing** | ❌ No implementation found |
-| BUD-016 | Committed-cost control | Block and route for approval when supplier/subcontractor committed cost exceeds budget. | Must | **Missing** | ❌ No implementation found |
-| BUD-017 | Quantity budgeting | Track budgeted quantity × budgeted rate = budgeted amount for controlled BOQ/cost items. | Must | **Missing** | ❌ No implementation found |
-| BUD-018 | Budget vs commitment | Compare budgeted cost vs PO/WO cost by project, WBS, BOQ, supplier and subcontractor. | Must | **Missing** | ❌ No implementation found |
-| BUD-019 | Forecast control | Alert and route for approval when Forecast Cost > Approved Budget. | Must | **Missing** | ❌ No implementation found |
-| BUD-020 | Variance | Provide budget variance by amount and percentage. | Must | **Missing** | ❌ No implementation found |
-| BUD-021 | Revision history | Maintain full history of Original Budget - Approved Revision - Current Budget. | Must | **Missing** | ❌ No implementation found |
-| BUD-022 | Baseline lock | Prevent direct modification of approved budget baseline; revisions require approval. | Must | **Missing** | ❌ No implementation found |
-| BUD-023 | Hard-stop controls | Provide configurable hard-stop controls for quantity/value threshold breaches. | Must | **Missing** | ❌ No implementation found |
+| BUD-001 | Baseline | Maintain an approved budget baseline at project and site level. | Must | **Partial** | Backend implemented 2026-10-23: ProjectBudget with project/site dimensions, activate→lock lifecycle and baselineDate; approved budgets become read-only. UI pending. |
+| BUD-002 | Cost heads | Break the budget by cost head (material, labour, subcontract, overhead). | Must | **Implemented** | Backend implemented 2026-10-23: CostHead master plus ProjectBudgetLine grouped by cost head; summary rolls up planned/committed/actual/forecast/variance per cost head. |
+| BUD-003 | Tracking | Track committed and actual spend against budget in real time. | Must | **Implemented** | Backend implemented 2026-10-23: Committed and actual spend update from commitments and ProjectCostLedger; /budgets/:id/summary and /budgets/dashboard expose live totals. |
+| BUD-004 | Workflow | Provide configurable approval workflows with multiple levels and value-based routing (e.g. Site Engineer to PM to Financ... | Must | **Implemented** | Backend implemented 2026-10-23: ApprovalWorkflow/ApprovalStep with serial+parallel steps, ALL/ANY groups, role/permission/user approvers and value-based ApprovalThreshold routing. |
+| BUD-005 | Delegation | Support delegation of approval authority and escalation on delay. | Must | **Implemented** | Backend implemented 2026-10-23: ApprovalDelegation (date-bounded) and ApprovalEscalationRule with NOTIFY/REASSIGN plus POST /approvals/escalations/run. |
+| BUD-006 | Blocking trigger | Block a transaction and route it for approval when a defined threshold is breached (not merely warn). | Must | **Partial** | Backend implemented 2026-10-23: Configurable value thresholds and hard-stop enforcement on POST /budget-commitments; automatic approval-instance routing on breach still pending. |
+| BUD-007 | Configurable thresholds | Thresholds must be configurable (absolute value and/or percentage) per project, site and cost head. | Must | **Partial** | Backend implemented 2026-10-23: BudgetThreshold per project/site/cost head/budget with warning, critical and hard-stop percentages and hard-stop toggle; absolute-value thresholds pending. |
+| BUD-008 | Alerts | Send real-time alerts (in-app, email, mobile/WhatsApp) when a budget or price threshold is approached or breached. | Must | **Partial** | Backend implemented 2026-10-23: In-app BudgetAlert rows are created on threshold breach with read/resolve endpoints; email/WhatsApp/mobile delivery pending. |
+| BUD-009 | Audit trail | Maintain a full audit trail of budget revisions and approvals (requester, original vs revised, justification, approver, ... | Must | **Implemented** | Backend implemented 2026-10-23: BudgetRevision stores requester, reason, justification, before/after totals, delta, snapshot, changes JSON, approver/rejecter and timestamps. |
+| BUD-010 | Scenario A | Budget increase: a revision to a project/site budget takes effect only after the designated authority approves it. | Must | **Implemented** | Backend implemented 2026-10-23: Budget increases require a revision; approval endpoint applies changes and bumps totals, direct edits allowed only in DRAFT. |
+| BUD-011 | Scenario B | Procurement cost increase: if a rate rises above the estimated/previous price beyond the threshold, or spend would excee... | Must | **Partial** | Backend implemented 2026-10-23: PO creation reserves a BudgetCommitment and raises threshold alerts; rate-vs-estimate comparison and automatic approval routing pending. |
+| BUD-012 | Approvals dashboard | Provide a pending-approvals dashboard per user with approval history. | Should | **Implemented** | Backend implemented 2026-10-23: GET /approvals/inbox, /approvals/my-requests, /approvals/dashboard and per-instance history provide pending approvals and audit trail. |
+| BUD-013 | Budget hierarchy | Maintain budget at Project - Site - WBS - BOQ - Cost Head level. | Must | **Partial** | Backend implemented 2026-10-23: Budget lines carry project, site, WBS, WBS item, BOQ, BOQ line and cost head references; hierarchy validation and drill-down UI pending. |
+| BUD-014 | Cost control | Track Budget - Commitment - Actual - Forecast - Cost to Complete - Variance in real time. | Must | **Implemented** | Backend implemented 2026-10-23: Planned, committed, actual, forecast, cost-to-complete and variance computed on every commitment/ledger post and exposed in budget summary. |
+| BUD-015 | WO budget control | Block and route for approval when WO value exceeds approved budget. | Must | **Missing** | Work-order module integration is not implemented yet. |
+| BUD-016 | Committed-cost control | Block and route for approval when supplier/subcontractor committed cost exceeds budget. | Must | **Partial** | Backend implemented 2026-10-23: Commitment API enforces configurable hard stops; PO hook records commitments and alerts but does not block/route the PO itself yet. |
+| BUD-017 | Quantity budgeting | Track budgeted quantity × budgeted rate = budgeted amount for controlled BOQ/cost items. | Must | **Implemented** | Backend implemented 2026-10-23: Budget lines store quantity × planned rate with computed planned amount and forecast amount. |
+| BUD-018 | Budget vs commitment | Compare budgeted cost vs PO/WO cost by project, WBS, BOQ, supplier and subcontractor. | Must | **Partial** | Backend implemented 2026-10-23: Commitments store vendor, project and budget line; budget-vs-commitment comparison exists per project/line, WBS/BOQ/subcontractor rollups pending. |
+| BUD-019 | Forecast control | Alert and route for approval when Forecast Cost > Approved Budget. | Must | **Partial** | Backend implemented 2026-10-23: Threshold alerts fire when projected utilisation breaches warning/critical/hard-stop; automatic forecast>budget approval routing pending. |
+| BUD-020 | Variance | Provide budget variance by amount and percentage. | Must | **Implemented** | Backend implemented 2026-10-23: Budget summary and dashboard expose variance amount and variance percentage along with utilisation. |
+| BUD-021 | Revision history | Maintain full history of Original Budget - Approved Revision - Current Budget. | Must | **Implemented** | Backend implemented 2026-10-23: BudgetRevision keeps revision number plus original/revised totals, per-line before/after and snapshot; list endpoint returns full history. |
+| BUD-022 | Baseline lock | Prevent direct modification of approved budget baseline; revisions require approval. | Must | **Implemented** | Backend implemented 2026-10-23: Only DRAFT budgets can be edited; activate/lock lifecycle plus revision approval prevents direct changes to an approved baseline. |
+| BUD-023 | Hard-stop controls | Provide configurable hard-stop controls for quantity/value threshold breaches. | Must | **Partial** | Backend implemented 2026-10-23: Configurable hard-stop percentages/toggle per project/site/cost head/budget block commitments; quantity-based hard stops pending. |
 | BUD-024 | Audit trail | Maintain transaction-level audit trail including delay analysis/reason for variance. | Must | **Missing** | ❌ No implementation found |
 
 ## 4.5 Subcontractor Management (16 requirements)
@@ -188,7 +188,7 @@ Total requirements: 232
 | SUB-005 | Retention | Track retention (percentage, amount held, amount released). | Must | **Missing** | ❌ No implementation found |
 | SUB-006 | Rating | Record subcontractor performance rating. | Should | **Partial** |  |
 | SUB-007 | Cost link | Link subcontract cost to project cost and budget. | Must | **Missing** | ❌ No implementation found |
-| SUB-008 | Bill approval | Route subcontractor bills through multi-level approval. | Must | **Missing** | ❌ No implementation found |
+| SUB-008 | Bill approval | Route subcontractor bills through multi-level approval. | Must | **Partial** | Backend implemented 2026-10-23: Approval engine supports multi-level workflows for subcontractor bills; subcontractor module and bill hook pending. |
 | SUB-009 | Quantity tracking | Track BOQ Qty - WO Qty - Executed Qty - Certified Qty - Billed Qty - Paid Qty - Balance Qty. | Must | **Missing** | ❌ No implementation found |
 | SUB-010 | WO quantity control | Block subcontractor WO quantity when WO Qty > available BOQ Qty, subject to approval. | Must | **Missing** | ❌ No implementation found |
 | SUB-011 | Execution control | Block subcontractor execution/billing when Executed/Certified Qty > WO Qty, subject to configured control. | Must | **Missing** | ❌ No implementation found |

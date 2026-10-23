@@ -510,6 +510,14 @@ model Organization {
   boqLines       BOQLine[]
   rateMasters    RateMaster[]
   rateVersions   RateVersion[]
+  costHeads              CostHead[]
+  projectBudgets         ProjectBudget[]
+  budgetLines            ProjectBudgetLine[]
+  budgetRevisions        BudgetRevision[]
+  budgetCommitments      BudgetCommitment[]
+  projectCostLedgers     ProjectCostLedger[]
+  budgetAlerts           BudgetAlert[]
+  budgetThresholds       BudgetThreshold[]
   approvalWorkflows      ApprovalWorkflow[]
   approvalThresholds     ApprovalThreshold[]
   approvalInstances      ApprovalInstance[]
@@ -877,6 +885,9 @@ model Project {
   tasks         ConstructionTask[]
   siteReports   DailySiteReport[]
   bookings      Booking[]
+  projectBudgets        ProjectBudget[]
+  budgetCommitments     BudgetCommitment[]
+  projectCostLedgers    ProjectCostLedger[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -2486,3 +2497,280 @@ model ApprovalEscalationRule {
 
   @@index([workflowId, isActive])
 }
+
+// ============================================================ Budget Control & Cost Ledger
+
+enum BudgetStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  LOCKED
+  SUPERSEDED
+  REJECTED
+  ARCHIVED
+}
+
+enum BudgetRevisionStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum CommitmentStatus {
+  PENDING
+  COMMITTED
+  PARTIALLY_CONSUMED
+  CONSUMED
+  RELEASED
+  CANCELLED
+}
+
+enum LedgerEntrySource {
+  MANUAL
+  PURCHASE_ORDER
+  PURCHASE_REQUISITION
+  GOODS_RECEIPT
+  SUBCONTRACTOR_BILL
+  EXPENSE
+  JOURNAL
+  ADJUSTMENT
+  COMMITMENT
+}
+
+enum BudgetAlertType {
+  WARNING
+  CRITICAL
+  HARD_STOP
+}
+
+model CostHead {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  code           String
+  name           String
+  description    String?
+  parentId       String?  @db.Uuid
+  projectId      String?  @db.Uuid
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  budgets      ProjectBudgetLine[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, projectId])
+}
+
+model ProjectBudget {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String       @db.Uuid
+  projectId         String       @db.Uuid
+  siteId            String?      @db.Uuid
+  code              String
+  name              String
+  description       String?
+  status            BudgetStatus @default(DRAFT)
+  currency          String       @default("INR")
+  totalPlanned      Decimal      @default(0) @db.Decimal(16, 2)
+  totalCommitted    Decimal      @default(0) @db.Decimal(16, 2)
+  totalActual       Decimal      @default(0) @db.Decimal(16, 2)
+  totalForecast     Decimal      @default(0) @db.Decimal(16, 2)
+  contingency       Decimal      @default(0) @db.Decimal(16, 2)
+  baselineDate      DateTime?
+  lockedAt          DateTime?
+  lockedBy          String?      @db.Uuid
+  approvedBy        String?      @db.Uuid
+  approvedAt        DateTime?
+  createdBy         String?      @db.Uuid
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  deletedAt         DateTime?
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  lines        ProjectBudgetLine[]
+  revisions    BudgetRevision[]
+  commitments  BudgetCommitment[]
+  alerts       BudgetAlert[]
+  ledgers      ProjectCostLedger[]
+
+  @@unique([projectId, code])
+  @@index([organizationId, projectId, status])
+}
+
+model ProjectBudgetLine {
+  id             String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String  @db.Uuid
+  budgetId       String  @db.Uuid
+  costHeadId     String  @db.Uuid
+  siteId         String? @db.Uuid
+  wbsId          String? @db.Uuid
+  wbsItemId      String? @db.Uuid
+  boqId          String? @db.Uuid
+  boqLineId      String? @db.Uuid
+  code           String?
+  description    String?
+  uom            String?
+  quantity       Decimal @default(0) @db.Decimal(12, 3)
+  plannedRate    Decimal @default(0) @db.Decimal(16, 2)
+  plannedAmount  Decimal @default(0) @db.Decimal(16, 2)
+  committedAmount Decimal @default(0) @db.Decimal(16, 2)
+  actualAmount   Decimal @default(0) @db.Decimal(16, 2)
+  forecastAmount Decimal @default(0) @db.Decimal(16, 2)
+  variance       Decimal @default(0) @db.Decimal(16, 2)
+  sortOrder      Int     @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  budget       ProjectBudget  @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  costHead     CostHead       @relation(fields: [costHeadId], references: [id])
+  commitments  BudgetCommitment[]
+  ledgers      ProjectCostLedger[]
+
+  @@unique([budgetId, costHeadId, wbsItemId])
+  @@index([budgetId])
+  @@index([costHeadId])
+}
+
+model BudgetRevision {
+  id                String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String                @db.Uuid
+  budgetId          String                @db.Uuid
+  revisionNumber    Int
+  status            BudgetRevisionStatus @default(DRAFT)
+  reason            String
+  justification     String?
+  totalPlannedBefore Decimal             @db.Decimal(16, 2)
+  totalPlannedAfter  Decimal             @db.Decimal(16, 2)
+  deltaAmount       Decimal              @db.Decimal(16, 2)
+  requestedBy       String                @db.Uuid
+  requestedAt       DateTime             @default(now())
+  approvedBy        String?               @db.Uuid
+  approvedAt        DateTime?
+  rejectedBy        String?               @db.Uuid
+  rejectedAt        DateTime?
+  rejectionReason   String?
+  snapshot          Json                 @default("{}")
+  changes           Json                 @default("[]")
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  budget       ProjectBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetId, revisionNumber])
+  @@index([organizationId, budgetId, status])
+}
+
+model BudgetCommitment {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @db.Uuid
+  budgetId        String           @db.Uuid
+  budgetLineId    String?          @db.Uuid
+  projectId       String           @db.Uuid
+  entityType      String           // PURCHASE_ORDER | PURCHASE_REQUISITION | SUBCONTRACTOR_WO
+  entityId        String
+  referenceNumber String
+  vendorId        String?          @db.Uuid
+  description     String?
+  status          CommitmentStatus @default(PENDING)
+  committedAmount Decimal          @db.Decimal(16, 2)
+  consumedAmount  Decimal          @default(0) @db.Decimal(16, 2)
+  releasedAmount  Decimal          @default(0) @db.Decimal(16, 2)
+  currency        String           @default("INR")
+  committedBy     String?          @db.Uuid
+  committedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  budget       ProjectBudget     @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  budgetLine   ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ledgers      ProjectCostLedger[]
+
+  @@index([organizationId, budgetId, status])
+  @@index([projectId, entityType, entityId])
+}
+
+model ProjectCostLedger {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String             @db.Uuid
+  budgetId       String             @db.Uuid
+  budgetLineId   String?            @db.Uuid
+  commitmentId   String?            @db.Uuid
+  projectId      String             @db.Uuid
+  costHeadId     String?
+  entityType     LedgerEntrySource
+  entityId       String?
+  referenceNumber String?
+  description    String
+  debit          Decimal            @default(0) @db.Decimal(16, 2)
+  credit         Decimal            @default(0) @db.Decimal(16, 2)
+  amount         Decimal            @db.Decimal(16, 2)
+  currency       String             @default("INR")
+  postedAt       DateTime           @default(now())
+  postedBy       String?            @db.Uuid
+  metadata       Json               @default("{}")
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  budget       ProjectBudget      @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  budgetLine   ProjectBudgetLine? @relation(fields: [budgetLineId], references: [id], onDelete: SetNull)
+  commitment   BudgetCommitment?  @relation(fields: [commitmentId], references: [id], onDelete: SetNull)
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, budgetId, postedAt])
+  @@index([projectId, postedAt])
+  @@index([entityType, entityId])
+}
+
+model BudgetThreshold {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String   @db.Uuid
+  projectId       String?  @db.Uuid
+  budgetId        String?  @db.Uuid
+  siteId          String?  @db.Uuid
+  costHeadId      String?  @db.Uuid
+  scopeType       String   @default("PROJECT") // PROJECT | SITE | COST_HEAD | BUDGET
+  warningPercent  Decimal  @default(80) @db.Decimal(5, 2)
+  criticalPercent Decimal  @default(95) @db.Decimal(5, 2)
+  hardStopPercent Decimal  @default(100) @db.Decimal(5, 2)
+  hardStopEnabled Boolean  @default(true)
+  isActive        Boolean  @default(true)
+  createdBy       String?  @db.Uuid
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, projectId, scopeType, isActive])
+  @@index([organizationId, budgetId])
+}
+
+model BudgetAlert {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @db.Uuid
+  budgetId       String         @db.Uuid
+  budgetLineId   String?        @db.Uuid
+  type           BudgetAlertType
+  threshold      Decimal?       @db.Decimal(5, 2)
+  message        String
+  details        Json           @default("{}")
+  isRead         Boolean        @default(false)
+  isResolved     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  resolvedAt     DateTime?
+  resolvedBy     String?        @db.Uuid
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  budget       ProjectBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, budgetId, isRead, isResolved])
+}
+
+
+

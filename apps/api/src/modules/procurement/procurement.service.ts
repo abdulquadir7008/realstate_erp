@@ -4,6 +4,7 @@ import { errors } from '../../common/api-error';
 import { pageOffset, paginated, escapeLike } from '../../common/utils/pagination';
 import { requireOrgId, actorId } from '../../common/utils/tenant';
 import { nextCode } from '../../common/utils/sequence';
+import { BudgetService } from '../budget/budget.service';
 import {
   VendorInput,
   UpdateVendorInput,
@@ -42,7 +43,10 @@ export interface RequisitionListQuery extends PaginationInput {
 
 @Injectable()
 export class ProcurementService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly budget: BudgetService,
+  ) {}
 
   // ---------------- vendors
 
@@ -277,7 +281,7 @@ export class ProcurementService {
     const poNumber = await nextCode(this.prisma, 'PO');
     const items = input.items.map((it) => ({ ...it, amount: it.quantity * it.rate }));
     const subtotal = items.reduce((s, it) => s + it.amount, 0);
-    return this.prisma.purchaseOrder.create({
+    const po = await this.prisma.purchaseOrder.create({
       data: {
         organizationId: orgId,
         poNumber,
@@ -293,6 +297,15 @@ export class ProcurementService {
       },
       include: { items: true },
     });
+    await this.budget.syncPurchaseOrderCommitment({
+      id: po.id,
+      projectId: po.projectId,
+      poNumber: po.poNumber,
+      vendorId: po.vendorId,
+      total: po.total,
+      notes: po.notes,
+    });
+    return po;
   }
 
   async setPurchaseOrderStatus(id: string, status: string) {
@@ -324,8 +337,13 @@ export class ProcurementService {
     if (!po) throw errors.notFound('Purchase order');
     const orgId = requireOrgId();
     const grnNumber = await nextCode(this.prisma, 'GRN');
+    const rateByItem = new Map(po.items.map((item) => [item.id, Number(item.rate)]));
+    const receivedValue = input.items.reduce(
+      (sum, item) => sum + (item.poItemId ? (rateByItem.get(item.poItemId) ?? 0) * item.qtyAccepted : 0),
+      0,
+    );
 
-    return this.prisma.$transaction(async (tx) => {
+    const grn = await this.prisma.$transaction(async (tx) => {
       const grn = await tx.goodsReceivedNote.create({
         data: {
           organizationId: orgId,
@@ -371,5 +389,15 @@ export class ProcurementService {
 
       return grn;
     });
+
+    await this.budget.syncGoodsReceiptLedger({
+      id: grn.id,
+      poId: input.poId,
+      projectId: input.projectId,
+      grnNumber,
+      amount: receivedValue,
+    });
+    return grn;
   }
 }
+

@@ -97,11 +97,11 @@ apps/web/src/lib/modules.ts              + boq, rate-master modules
 **Objective:** Generic, reusable approval workflow engine for all domains
 
 **Deliverables:**
-- [ ] Prisma models: `ApprovalWorkflow`, `ApprovalStep`, `ApprovalInstance`, `ApprovalHistory`, `ApprovalDelegation`, `ApprovalEscalation`, `ApprovalThreshold`
-- [ ] Engine: State machine with conditions (amount, percentage, role, custom expression via JSONLogic or similar)
-- [ ] Features: Parallel/serial steps, delegation, SLA/escalation timer, reject/return to previous step
-- [ ] Integration hooks: PO, Expense, Leave, WorkOrder, RABill, BudgetRevision, Contract
-- [ ] Audit trail on every approval action
+- [x] Prisma models: `ApprovalWorkflow`, `ApprovalStep`, `ApprovalInstance`, `ApprovalHistory`, `ApprovalDelegation`, `ApprovalEscalation`, `ApprovalThreshold`
+- [x] Engine: Step matcher (USER/ROLE/PERMISSION), group ALL/ANY, required approvals, optional steps, threshold-based workflow resolution
+- [x] Features: Parallel/serial steps, delegation, SLA/escalation rules, reject/return to previous step
+- [~] Integration hooks: PO, Expense, Leave done; WorkOrder/RABill/BudgetRevision/Contract pending
+- [x] Audit trail on every approval action
 
 **Files to Create/Modify:**
 ```
@@ -135,15 +135,15 @@ apps/web/src/lib/modules.ts              + approval-workflow module
 **Objective:** Immutable budget baselines with revision workflow and commitment tracking
 
 **Deliverables:**
-- [ ] Prisma models: `BudgetBaseline`, `BudgetRevision`, `BudgetLine`, `BudgetLedgerEntry`, `Commitment`
-- [ ] Features: 
-  - Immutable baseline (created on project approval)
-  - Revision workflow (uses approval engine)
-  - Commitment tracking: PO/WO/Subcontractor WO create commitments
-  - Forecast: Manual + auto from commitments
-  - Variance: Baseline vs Revised vs Committed vs Actual vs Forecast
-- [ ] Hard stops: Block PO/Expense/WO creation when commitment > budget line (via approval engine)
-- [ ] Reports: Budget vs Actual drill-down by WBS/BOQ/cost head
+- [x] Prisma models: `ProjectBudget`, `ProjectBudgetLine`, `BudgetRevision`, `ProjectCostLedger`, `BudgetCommitment`, `CostHead`, `BudgetThreshold`, `BudgetAlert`
+- [x] Features: 
+  - Immutable baseline (activate/lock lifecycle; DRAFT-only edits)
+  - Revision workflow (draft ? pending ? approved/rejected, approved revisions reapply line changes)
+  - Commitment tracking: PO/SRN hooks create commitments and GRN ledger actuals
+  - Forecast: Manual line forecast + forecast vs actual cost-to-complete
+  - Variance: Planned vs Committed vs Actual vs Forecast by line and cost head
+- [~] Hard stops: configurable project/site/cost-head/budget thresholds block commitments via `POST /budget-commitments`; PO hook records commitments with alerts; approval routing pending
+- [~] Reports: `/budgets/:id/summary` and `/budgets/dashboard` totals/rollups; WBS/BOQ drill-down pending
 
 **Files to Create/Modify:**
 ```
@@ -163,6 +163,8 @@ apps/api/src/modules/subcontractor/      New subcontractor module (placeholder)
 - Attempt PO over budget → 403 with "Budget exceeded" (unless approval overrides)
 - Drill-down: Project → WBS → BOQ Line → Commitments (PO/WO) → Actuals
 - Variance report: Baseline | Revised | Committed | Actual | Forecast | Variance%
+
+**Backend status (2026-10-23):** Implemented as `apps/api/src/modules/budget/` with `/cost-heads`, `/budgets`, `/budgets/:id/{summary,submit,activate,lock,unlock,archive,revisions}`, `/budget-revisions`, `/budget-thresholds`, `/budget-commitments`, `/budget-ledger`, `/budget-alerts`, `/budgets/dashboard` and `/budgets/check`. PO creation records a commitment; GRN creation posts a goods-receipt ledger entry against the commitment. UI and approval-engine routing for over-budget commitments remain.
 
 ---
 
@@ -365,3 +367,6 @@ A requirement is **Implemented** only when:
 ---
 
 *Document version: 1.0 | Updated: 2026-10-22*
+
+
+

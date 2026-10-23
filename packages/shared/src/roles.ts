@@ -66,6 +66,8 @@ export const ROLE_TEMPLATES: Record<SystemRoleCode, { name: string; description:
       construction: readExp,
       task: read,
       audit: readExp,
+      approval: ['read', 'approve', 'export'],
+      budget: ['read', 'approve', 'export'],
     }),
   },
   SALES_MANAGER: {
@@ -141,6 +143,8 @@ export const ROLE_TEMPLATES: Record<SystemRoleCode, { name: string; description:
       report: full,
       document: readDl,
       vendor: read,
+      approval: ['read'],
+      budget: readExp,
       notification: ['read', 'manage'],
     }),
   },
@@ -164,6 +168,8 @@ export const ROLE_TEMPLATES: Record<SystemRoleCode, { name: string; description:
       document: readDl,
       vendor: readExp,
       audit: readExp,
+      approval: ['read', 'approve', 'export', 'manage'],
+      budget: full,
       notification: ['read', 'manage'],
     }),
   },
@@ -186,6 +192,8 @@ export const ROLE_TEMPLATES: Record<SystemRoleCode, { name: string; description:
       report: readExp,
       lead: read,
       customer: read,
+      approval: ['create', 'read', 'approve', 'manage'],
+      budget: full,
       booking: read,
       notification: ['read', 'manage'],
     }),
@@ -205,6 +213,8 @@ export const ROLE_TEMPLATES: Record<SystemRoleCode, { name: string; description:
       purchase: full,
       document: full,
       report: readExp,
+      approval: ['read', 'approve'],
+      budget: ['read', 'create', 'update', 'export'],
     }),
   },
   SITE_ENGINEER: {
@@ -219,6 +229,8 @@ export const ROLE_TEMPLATES: Record<SystemRoleCode, { name: string; description:
       site_report: full,
       material: ['read', 'create', 'update'],
       document: ['create', 'read', 'download'],
+      approval: ['read'],
+      budget: ['read'],
     }),
   },
   INVENTORY_MANAGER: {
@@ -234,6 +246,7 @@ export const ROLE_TEMPLATES: Record<SystemRoleCode, { name: string; description:
       report: readExp,
       document: readDl,
       booking: read,
+      budget: ['read'],
     }),
   },
   HR_MANAGER: {
@@ -330,3 +343,5 @@ export function roleHasPermission(granted: string[], permission: string): boolea
   if (granted.includes(`*:${action}`)) return true;
   return false;
 }
+
+

@@ -69,10 +69,10 @@
     "acceptance_criteria": "Bid cannot progress without approval.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Generic approval workflows can model bid go/no-go; tender/bid module integration and UI pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "TND-006",
@@ -354,10 +354,10 @@
     "acceptance_criteria": "Baseline stored per site and cost head.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Project/site budget baselines broken down by cost head via ProjectBudget and ProjectBudgetLine; UI pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "PRJ-008",
@@ -369,10 +369,10 @@
     "acceptance_criteria": "CTC and variance update as costs post.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Cost-to-complete (forecast - actual) and cost variance (amount and %) update from commitments and ledger postings.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Partial"
+    "status": "Implemented"
   },
   {
     "req_id": "PRJ-009",
@@ -384,10 +384,10 @@
     "acceptance_criteria": "Revision blocked until approved; see Budget Control module.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Upward revisions require create→submit→approve on BudgetRevision; approval applies changes and recalculates totals.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Partial"
+    "status": "Implemented"
   },
   {
     "req_id": "PRJ-010",
@@ -474,10 +474,10 @@
     "acceptance_criteria": "Baseline, revised plan and actuals held separately; approved baseline locked and cannot be overwritten.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Budget baseline is locked after activation, revisions retain original snapshot and revised values; full baseline-vs-revised-vs-actual reporting UI pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "PRJ-016",
@@ -759,7 +759,7 @@
     "acceptance_criteria": "PO routed by value; approvals logged.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Approval engine supports PURCHASE_ORDER workflows and value thresholds; PO creation still needs automatic approval-instance start and hard-stop gate.",
     "est_effort": null,
     "our_commit_2": null,
     "status": "Partial"
@@ -774,7 +774,7 @@
     "acceptance_criteria": "Over-budget PO is blocked and routed, not just warned.",
     "our_commit": "no, customize",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: POST /budgets/check and PO→commitment hooks enforce available budget when hard stops are configured; PO creation itself is not yet blocked/routed.",
     "est_effort": null,
     "our_commit_2": null,
     "status": "Partial"
@@ -1014,7 +1014,7 @@
     "acceptance_criteria": "PO value compared to approved project/site/WBS budget; over-budget blocked and routed. [See PRC-007]",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: PO totals are compared to active project budget through commitment creation and threshold alerts; pre-creation blocking/approval pending.",
     "est_effort": null,
     "our_commit_2": null,
     "status": "Partial"
@@ -1044,7 +1044,7 @@
     "acceptance_criteria": "Material budget quantity, rate and amount compared with procurement commitment and actual cost.",
     "our_commit": "no, customize",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Budget lines track quantity/rate/amount and commitments/actuals post against them; material-wise reconciliation pending.",
     "est_effort": null,
     "our_commit_2": null,
     "status": "Partial"
@@ -1224,10 +1224,10 @@
     "acceptance_criteria": "Baseline stored and locked once approved.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: ProjectBudget with project/site dimensions, activate→lock lifecycle and baselineDate; approved budgets become read-only. UI pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-002",
@@ -1239,10 +1239,10 @@
     "acceptance_criteria": "Budget and actuals visible per cost head.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: CostHead master plus ProjectBudgetLine grouped by cost head; summary rolls up planned/committed/actual/forecast/variance per cost head.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-003",
@@ -1254,10 +1254,10 @@
     "acceptance_criteria": "Committed + actual vs budget updates live.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Committed and actual spend update from commitments and ProjectCostLedger; /budgets/:id/summary and /budgets/dashboard expose live totals.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-004",
@@ -1269,10 +1269,10 @@
     "acceptance_criteria": "Routing configurable by value and role.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: ApprovalWorkflow/ApprovalStep with serial+parallel steps, ALL/ANY groups, role/permission/user approvers and value-based ApprovalThreshold routing.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-005",
@@ -1284,10 +1284,10 @@
     "acceptance_criteria": "Delegate/escalation rules configurable and effective.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: ApprovalDelegation (date-bounded) and ApprovalEscalationRule with NOTIFY/REASSIGN plus POST /approvals/escalations/run.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-006",
@@ -1299,10 +1299,10 @@
     "acceptance_criteria": "Transaction cannot proceed until approved.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Configurable value thresholds and hard-stop enforcement on POST /budget-commitments; automatic approval-instance routing on breach still pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-007",
@@ -1314,10 +1314,10 @@
     "acceptance_criteria": "Thresholds set at each level and enforced.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: BudgetThreshold per project/site/cost head/budget with warning, critical and hard-stop percentages and hard-stop toggle; absolute-value thresholds pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-008",
@@ -1329,10 +1329,10 @@
     "acceptance_criteria": "Alerts delivered to the relevant role.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: In-app BudgetAlert rows are created on threshold breach with read/resolve endpoints; email/WhatsApp/mobile delivery pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-009",
@@ -1344,10 +1344,10 @@
     "acceptance_criteria": "Complete, tamper-evident history retained.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: BudgetRevision stores requester, reason, justification, before/after totals, delta, snapshot, changes JSON, approver/rejecter and timestamps.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-010",
@@ -1359,10 +1359,10 @@
     "acceptance_criteria": "Increase not applied until approved.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Budget increases require a revision; approval endpoint applies changes and bumps totals, direct edits allowed only in DRAFT.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-011",
@@ -1374,10 +1374,10 @@
     "acceptance_criteria": "Order blocked and routed on breach.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: PO creation reserves a BudgetCommitment and raises threshold alerts; rate-vs-estimate comparison and automatic approval routing pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-012",
@@ -1389,10 +1389,10 @@
     "acceptance_criteria": "Each approver sees their queue and history.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: GET /approvals/inbox, /approvals/my-requests, /approvals/dashboard and per-instance history provide pending approvals and audit trail.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-013",
@@ -1404,10 +1404,10 @@
     "acceptance_criteria": "Budget maintained at project, site, WBS, BOQ and cost-head levels.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Budget lines carry project, site, WBS, WBS item, BOQ, BOQ line and cost head references; hierarchy validation and drill-down UI pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-014",
@@ -1419,10 +1419,10 @@
     "acceptance_criteria": "Budget, commitment, actual, forecast, cost-to-complete and variance tracked in real time.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Planned, committed, actual, forecast, cost-to-complete and variance computed on every commitment/ledger post and exposed in budget summary.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-015",
@@ -1434,7 +1434,7 @@
     "acceptance_criteria": "WO value exceeding approved budget is blocked and routed for approval.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Work-order module integration is not implemented yet.",
     "est_effort": null,
     "our_commit_2": null,
     "status": "Missing"
@@ -1449,10 +1449,10 @@
     "acceptance_criteria": "Supplier/subcontractor committed cost exceeding budget is blocked and routed.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Commitment API enforces configurable hard stops; PO hook records commitments and alerts but does not block/route the PO itself yet.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-017",
@@ -1464,10 +1464,10 @@
     "acceptance_criteria": "Budgeted qty x budgeted rate = budgeted amount tracked for controlled items.",
     "our_commit": "no, customize",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Budget lines store quantity × planned rate with computed planned amount and forecast amount.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-018",
@@ -1479,10 +1479,10 @@
     "acceptance_criteria": "Budgeted cost vs PO/WO cost compared by project, WBS, BOQ, supplier and subcontractor.",
     "our_commit": "no, customize",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Commitments store vendor, project and budget line; budget-vs-commitment comparison exists per project/line, WBS/BOQ/subcontractor rollups pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-019",
@@ -1494,10 +1494,10 @@
     "acceptance_criteria": "Forecast cost greater than approved budget triggers alert and approval.",
     "our_commit": "no, customize",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Threshold alerts fire when projected utilisation breaches warning/critical/hard-stop; automatic forecast>budget approval routing pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-020",
@@ -1509,10 +1509,10 @@
     "acceptance_criteria": "Budget variance shown by amount and percentage.",
     "our_commit": "no, customize",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Budget summary and dashboard expose variance amount and variance percentage along with utilisation.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-021",
@@ -1524,10 +1524,10 @@
     "acceptance_criteria": "Full history of original budget, approved revision and current budget retained.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: BudgetRevision keeps revision number plus original/revised totals, per-line before/after and snapshot; list endpoint returns full history.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-022",
@@ -1539,10 +1539,10 @@
     "acceptance_criteria": "Approved budget baseline cannot be modified directly; revisions require approval.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Only DRAFT budgets can be edited; activate/lock lifecycle plus revision approval prevents direct changes to an approved baseline.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-023",
@@ -1554,10 +1554,10 @@
     "acceptance_criteria": "Configurable hard-stop controls enforced on quantity/value threshold breaches.",
     "our_commit": "no, customize",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Configurable hard-stop percentages/toggle per project/site/cost head/budget block commitments; quantity-based hard stops pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "BUD-024",
@@ -1689,10 +1689,10 @@
     "acceptance_criteria": "Bills approved per workflow before payment.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Approval engine supports multi-level workflows for subcontractor bills; subcontractor module and bill hook pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "SUB-009",
@@ -2829,10 +2829,10 @@
     "acceptance_criteria": "Documents routed for approval before issue.",
     "our_commit": "Yes",
     "compliance": null,
-    "vendor_remarks": null,
+    "vendor_remarks": "Backend implemented 2026-10-23: Entity-agnostic approval engine can host document approval workflows; document module integration pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "DOC-005",

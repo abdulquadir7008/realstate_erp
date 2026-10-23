@@ -36,6 +36,7 @@ export const MODULES = [
   'report',
   'workflow',
   'approval',
+  'budget',
   'notification',
   'settings',
   'subscription',
