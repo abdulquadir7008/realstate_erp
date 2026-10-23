@@ -12,6 +12,7 @@ import { BookingsModule } from './bookings/bookings.module';
 import { FinanceModule } from './finance/finance.module';
 import { HrModule } from './hr/hr.module';
 import { ProcurementModule } from './procurement/procurement.module';
+import { BoqModule } from './boq/boq.module';
 import { ConstructionModule } from './construction/construction.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { DocumentsModule } from './documents/documents.module';
@@ -36,6 +37,7 @@ import { PortalModule } from './portal/portal.module';
     FinanceModule,
     HrModule,
     ProcurementModule,
+    BoqModule,
     ConstructionModule,
     TicketsModule,
     DocumentsModule,

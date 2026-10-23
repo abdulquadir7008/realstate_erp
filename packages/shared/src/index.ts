@@ -13,3 +13,4 @@ export * from './schemas/customer';
 export * from './schemas/booking';
 export * from './schemas/finance';
 export * from './schemas/operations';
+export * from './schemas/procurement';

@@ -1,6 +1,8 @@
 // Real Estate ERP — complete data model (multi-tenant, shared-db + tenant_id isolation)
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = []
+  dataProxy = false
 }
 
 datasource db {
@@ -59,6 +61,53 @@ enum ProjectStatus {
   ON_HOLD
   COMPLETED
   CANCELLED
+}
+
+enum WBSStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum WBSItemType {
+  SUMMARY
+  WORK_PACKAGE
+  MILESTONE
+}
+
+enum WBSBaselineStatus {
+  PROPOSED
+  APPROVED
+  SUPERSEDED
+}
+
+enum BOQStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+  SUPERSEDED
+}
+
+enum BOQLineType {
+  MATERIAL
+  LABOUR
+  EQUIPMENT
+  SUBCONTRACTOR
+  OTHER
+}
+
+enum RateType {
+  MATERIAL
+  LABOUR
+  EQUIPMENT
+  SUBCONTRACTOR
+  OTHER
+}
+
+enum RateStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
 }
 
 enum BuildingType {
@@ -457,6 +506,10 @@ model Organization {
   subscriptions  Subscription[]
   saasInvoices   SaaSInvoice[]
   auditLogs      AuditLog[]
+  boqs           BOQ[]
+  boqLines       BOQLine[]
+  rateMasters    RateMaster[]
+  rateVersions   RateVersion[]
 }
 
 model Subscription {
@@ -811,6 +864,9 @@ model Project {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   buildings     Building[]
+  sites         Site[]
+  wbs           WBS[]
+  boqs          BOQ[]
   milestones    ProjectMilestone[]
   units         Unit[]
   tasks         ConstructionTask[]
@@ -838,6 +894,249 @@ model ProjectMilestone {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, order])
+}
+
+// ============================================================ Site & WBS Hierarchy
+
+model Site {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  projectId      String @db.Uuid
+  name           String
+  code           String
+  address        String?
+  city           String?
+  state          String?
+  latitude       Decimal? @db.Decimal(10, 7)
+  longitude      Decimal? @db.Decimal(10, 7)
+  areaSqft       Decimal? @db.Decimal(12, 2)
+  startDate      DateTime? @db.Date
+  endDate        DateTime? @db.Date
+  status         String   @default("PLANNING")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbs   WBS[]
+
+  @@unique([projectId, code])
+  @@index([organizationId, projectId])
+}
+
+model WBS {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  projectId      String     @db.Uuid
+  siteId         String?    @db.Uuid
+  code           String
+  name           String
+  description    String?
+  version        Int        @default(1)
+  status         WBSStatus  @default(DRAFT)
+  baselineStatus WBSBaselineStatus @default(PROPOSED)
+  startDate      DateTime?  @db.Date
+  endDate        DateTime?  @db.Date
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  project Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  site    Site?       @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  items   WBSItem[]
+  versions WBSVersion[]
+  boqs     BOQ[]
+
+  @@unique([projectId, code])
+  @@index([organizationId, projectId, status])
+}
+
+model WBSItem {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  wbsId          String      @db.Uuid
+  parentId       String?     @db.Uuid
+  code           String
+  name           String
+  description    String?
+  type           WBSItemType @default(WORK_PACKAGE)
+  order          Int         @default(0)
+  level          Int         @default(1)
+  quantity       Decimal?    @db.Decimal(12, 3)
+  unit           String?
+  uom            String?
+  startDate      DateTime?   @db.Date
+  endDate        DateTime?   @db.Date
+  plannedCost    Decimal     @default(0) @db.Decimal(16, 2)
+  actualCost     Decimal     @default(0) @db.Decimal(16, 2)
+  committedCost  Decimal     @default(0) @db.Decimal(16, 2)
+  progressPercent Int        @default(0)
+  status         String      @default("PENDING")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?
+
+wbs     WBS       @relation(fields: [wbsId], references: [id], onDelete: Cascade)
+  parent  WBSItem?  @relation("WBSItemHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children WBSItem[] @relation("WBSItemHierarchy")
+  boqLines BOQLine[]
+
+  @@index([wbsId, parentId, order])
+  @@index([organizationId, wbsId])
+}
+
+model WBSVersion {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  wbsId          String   @db.Uuid
+  version        Int
+  name           String
+  snapshot       Json     // Full WBS tree snapshot
+  baselineStatus WBSBaselineStatus @default(PROPOSED)
+  approvedBy     String?  @db.Uuid
+  approvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  wbs WBS @relation(fields: [wbsId], references: [id], onDelete: Cascade)
+
+  @@unique([wbsId, version])
+  @@index([organizationId, wbsId])
+}
+
+// ============================================================ BOQ & Rate Master
+
+model BOQ {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  projectId      String     @db.Uuid
+  wbsId          String?    @db.Uuid
+  code           String
+  name           String
+  description    String?
+  version        Int        @default(1)
+  status         BOQStatus  @default(DRAFT)
+  baselineStatus WBSBaselineStatus @default(PROPOSED)
+  totalAmount    Decimal    @default(0) @db.Decimal(16, 2)
+  startDate      DateTime?  @db.Date
+  endDate        DateTime?  @db.Date
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbs          WBS?         @relation(fields: [wbsId], references: [id], onDelete: SetNull)
+  lines        BOQLine[]
+  versions     BOQVersion[]
+
+  @@unique([projectId, code])
+  @@index([organizationId, projectId, status])
+}
+
+model BOQLine {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  boqId          String      @db.Uuid
+  wbsItemId      String?     @db.Uuid
+  parentId       String?     @db.Uuid
+  code           String
+  name           String
+  description    String?
+  type           BOQLineType @default(MATERIAL)
+  order          Int         @default(0)
+  level          Int         @default(1)
+  quantity       Decimal     @db.Decimal(12, 3)
+  unit           String
+  uom            String?
+  rateId         String?     @db.Uuid
+  rate           Decimal     @default(0) @db.Decimal(16, 2) // Snapshot of rate at creation
+  amount         Decimal     @default(0) @db.Decimal(16, 2) // quantity * rate
+  startDate      DateTime?   @db.Date
+  endDate        DateTime?   @db.Date
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  boq          BOQ          @relation(fields: [boqId], references: [id], onDelete: Cascade)
+  wbsItem      WBSItem?     @relation(fields: [wbsItemId], references: [id], onDelete: SetNull)
+  rateMaster   RateMaster?  @relation(fields: [rateId], references: [id], onDelete: SetNull)
+  parent       BOQLine?     @relation("BOQLineHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     BOQLine[]    @relation("BOQLineHierarchy")
+
+  @@index([boqId, parentId, order])
+  @@index([organizationId, boqId])
+  @@index([rateId])
+}
+
+model BOQVersion {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  boqId          String   @db.Uuid
+  version        Int
+  name           String
+  snapshot       Json     // Full BOQ tree snapshot
+  baselineStatus WBSBaselineStatus @default(PROPOSED)
+  approvedBy     String?  @db.Uuid
+  approvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  boq BOQ @relation(fields: [boqId], references: [id], onDelete: Cascade)
+
+  @@unique([boqId, version])
+  @@index([organizationId, boqId])
+}
+
+model RateMaster {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  code           String
+  name           String
+  description    String?
+  type           RateType   @default(MATERIAL)
+  unit           String
+  uom            String?
+  baseRate       Decimal    @default(0) @db.Decimal(16, 2)
+  currency       String     @default("INR")
+  effectiveFrom  DateTime   @db.Date
+  effectiveTo    DateTime?  @db.Date
+  status         RateStatus @default(DRAFT)
+  tags           String[]   @default([])
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  versions       RateVersion[]
+  boqLines       BOQLine[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, type, status])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+model RateVersion {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String @db.Uuid
+  rateMasterId   String   @db.Uuid
+  version        Int
+  name           String
+  baseRate       Decimal  @db.Decimal(16, 2)
+  effectiveFrom  DateTime @db.Date
+  effectiveTo    DateTime? @db.Date
+  status         RateStatus @default(DRAFT)
+  approvedBy     String?  @db.Uuid
+  approvedAt     DateTime?
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  rateMaster RateMaster @relation(fields: [rateMasterId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([rateMasterId, version])
+  @@index([organizationId, rateMasterId])
 }
 
 // ============================================================ Inventory (property)
