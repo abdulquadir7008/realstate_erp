@@ -16,3 +16,4 @@ export * from './schemas/operations';
 export * from './schemas/procurement';
 export * from './schemas/approval';
 export * from './schemas/budget';
+export * from './schemas/audit';

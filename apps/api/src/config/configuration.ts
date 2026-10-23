@@ -26,6 +26,7 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v !== 'false' && v !== '0'),
   SUBSCRIPTION_GRACE_DAYS: z.coerce.number().default(7),
+  AUDIT_RETENTION_DAYS: z.coerce.number().default(2555),
   STORAGE_DRIVER: z.enum(['local', 's3', 'r2']).default('local'),
   STORAGE_LOCAL_DIR: z.string().default('./storage/uploads'),
   S3_ENDPOINT: z.string().optional().default(''),

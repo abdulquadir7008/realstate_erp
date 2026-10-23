@@ -291,7 +291,7 @@ export class ApprovalService {
 
   // ---------------- instances
 
-  async start(input: StartApprovalInput, user: SessionUser) {
+  async start(input: StartApprovalInput, user: Pick<SessionUser, 'id'>) {
     const orgId = requireOrgId();
     const pending = await this.prisma.approvalInstance.findFirst({
       where: { entityType: input.entityType, entityId: input.entityId, status: 'PENDING' },

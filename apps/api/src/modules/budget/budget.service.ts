@@ -38,8 +38,10 @@ import {
   BudgetAlertLevels,
   DEFAULT_ALERT_LEVELS,
 } from './budget.engine';
+import { ApprovalService } from '../approval/approval.service';
+import { BudgetAlertNotifier } from './budget-alert-notifier.service';
 
-const OPEN_COMMITMENT_STATUSES: CommitmentStatus[] = ['PENDING', 'COMMITTED', 'PARTIALLY_CONSUMED'];
+const OPEN_COMMITMENT_STATUSES: CommitmentStatus[] = ['COMMITTED', 'PARTIALLY_CONSUMED'];
 
 interface CostHeadListQuery extends PaginationInput {
   projectId?: string;
@@ -47,9 +49,21 @@ interface CostHeadListQuery extends PaginationInput {
   isActive?: boolean;
 }
 
+export interface BudgetDrilldownQuery {
+  wbsId?: string;
+  wbsItemId?: string;
+  boqId?: string;
+  boqLineId?: string;
+  costHeadId?: string;
+}
+
 @Injectable()
 export class BudgetService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly approval: ApprovalService,
+    private readonly alertNotifier: BudgetAlertNotifier,
+  ) {}
 
   // ---------------- cost heads
 
@@ -393,7 +407,8 @@ export class BudgetService {
     return paginated(items, total, q.page, q.limit);
   }
 
-  async getBudgetSummary(id: string) {    const budget = await this.getBudget(id);
+  async getBudgetSummary(id: string) {
+    const budget = await this.getBudget(id);
     const rollup = rollupByCostHead(budget.lines);
     const figures = normalizeFigures({
       planned: toNumber(budget.totalPlanned),
@@ -423,6 +438,252 @@ export class BudgetService {
       },
       byCostHead: rollup,
       lines: budget.lines,
+    };
+  }
+
+  /**
+   * Project -> WBS -> BOQ line drill-down: every budget line with its source WBS item,
+   * BOQ line, commitments (PO/WO/etc.) and posted actuals from the cost ledger.
+   */
+  async getBudgetDrilldown(id: string, q: BudgetDrilldownQuery = {}) {
+    const budget = await this.getBudget(id);
+    const wbsIds = [...new Set(budget.lines.map((line) => line.wbsId).filter(Boolean))] as string[];
+    const wbsItemIds = [...new Set(budget.lines.map((line) => line.wbsItemId).filter(Boolean))] as string[];
+    const boqLineIds = [...new Set(budget.lines.map((line) => line.boqLineId).filter(Boolean))] as string[];
+
+    const [commitments, ledger, wbsRows, wbsItemRows, boqLineRows] = await Promise.all([
+      this.prisma.budgetCommitment.findMany({ where: { budgetId: id }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.projectCostLedger.findMany({ where: { budgetId: id }, orderBy: { postedAt: 'desc' } }),
+      wbsIds.length
+        ? this.prisma.wBS.findMany({
+            where: { id: { in: wbsIds } },
+            select: { id: true, code: true, name: true, siteId: true, status: true, baselineStatus: true },
+          })
+        : Promise.resolve([]),
+      wbsItemIds.length
+        ? this.prisma.wBSItem.findMany({
+            where: { id: { in: wbsItemIds } },
+            select: {
+              id: true,
+              wbsId: true,
+              parentId: true,
+              code: true,
+              name: true,
+              level: true,
+              type: true,
+              status: true,
+              progressPercent: true,
+              quantity: true,
+              uom: true,
+            },
+          })
+        : Promise.resolve([]),
+      boqLineIds.length
+        ? this.prisma.bOQLine.findMany({
+            where: { id: { in: boqLineIds } },
+            select: {
+              id: true,
+              boqId: true,
+              wbsItemId: true,
+              code: true,
+              name: true,
+              type: true,
+              quantity: true,
+              unit: true,
+              rate: true,
+              amount: true,
+            },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const boqIds = [
+      ...new Set([
+        ...budget.lines.map((line) => line.boqId).filter(Boolean),
+        ...boqLineRows.map((line) => line.boqId).filter(Boolean),
+      ]),
+    ] as string[];
+    const boqRows = boqIds.length
+      ? await this.prisma.bOQ.findMany({
+          where: { id: { in: boqIds } },
+          select: { id: true, code: true, name: true, status: true, wbsId: true },
+        })
+      : [];
+
+    const wbsMap = new Map(wbsRows.map((row) => [row.id, row]));
+    const wbsItemMap = new Map(wbsItemRows.map((row) => [row.id, row]));
+    const boqLineMap = new Map(boqLineRows.map((row) => [row.id, row]));
+    const boqMap = new Map(boqRows.map((row) => [row.id, row]));
+
+    const commitmentsByLine = new Map<string, any[]>();
+    for (const commitment of commitments) {
+      const key = commitment.budgetLineId ?? '__unallocated__';
+      commitmentsByLine.set(key, [...(commitmentsByLine.get(key) ?? []), commitment]);
+    }
+    const ledgerByLine = new Map<string, any[]>();
+    for (const entry of ledger) {
+      const key = entry.budgetLineId ?? '__unallocated__';
+      ledgerByLine.set(key, [...(ledgerByLine.get(key) ?? []), entry]);
+    }
+
+    const enriched = budget.lines.map((line) => {
+      const wbsItem = line.wbsItemId ? wbsItemMap.get(line.wbsItemId) : undefined;
+      const boqLine = line.boqLineId ? boqLineMap.get(line.boqLineId) : undefined;
+      const planned = toNumber(line.plannedAmount);
+      const committed = toNumber(line.committedAmount);
+      const actual = toNumber(line.actualAmount);
+      const forecast = toNumber(line.forecastAmount);
+      return {
+        id: line.id,
+        code: line.code,
+        description: line.description,
+        costHead: line.costHead,
+        costHeadId: line.costHeadId,
+        siteId: line.siteId,
+        wbsId: line.wbsId,
+        wbs: line.wbsId ? wbsMap.get(line.wbsId) ?? null : null,
+        wbsItemId: line.wbsItemId,
+        wbsItem: wbsItem ?? null,
+        boqId: line.boqId,
+        boq: line.boqId ? boqMap.get(line.boqId) ?? null : null,
+        boqLineId: line.boqLineId,
+        boqLine: boqLine ?? null,
+        uom: line.uom,
+        quantity: toNumber(line.quantity),
+        plannedRate: toNumber(line.plannedRate),
+        planned,
+        committed,
+        actual,
+        forecast,
+        variance: toNumber(line.variance),
+        available: availableBudget({ planned, committed, actual, forecast, contingency: 0 }),
+        utilization: utilizationPercent({ planned, committed, actual, forecast, contingency: 0 }),
+        commitments: commitmentsByLine.get(line.id) ?? [],
+        ledger: ledgerByLine.get(line.id) ?? [],
+      };
+    });
+
+    const filtered = enriched.filter((line) => {
+      if (q.wbsId && line.wbsId !== q.wbsId) return false;
+      if (q.wbsItemId && line.wbsItemId !== q.wbsItemId) return false;
+      if (q.boqId && line.boqId !== q.boqId) return false;
+      if (q.boqLineId && line.boqLineId !== q.boqLineId) return false;
+      if (q.costHeadId && line.costHeadId !== q.costHeadId) return false;
+      return true;
+    });
+
+    const totalsFor = (rows: typeof filtered) => {
+      const figures = normalizeFigures({
+        planned: rows.reduce((sum, row) => sum + row.planned, 0),
+        committed: rows.reduce((sum, row) => sum + row.committed, 0),
+        actual: rows.reduce((sum, row) => sum + row.actual, 0),
+        forecast: rows.reduce((sum, row) => sum + row.forecast, 0),
+        contingency: 0,
+      });
+      return {
+        ...figures,
+        available: availableBudget(figures),
+        variance: varianceAmount(figures),
+        variancePercent: figures.planned > 0 ? Number(((varianceAmount(figures) / figures.planned) * 100).toFixed(2)) : 0,
+        utilization: utilizationPercent(figures),
+      };
+    };
+
+    const byWbs = new Map<string, any>();
+    const byBoq = new Map<string, any>();
+    for (const line of filtered) {
+      const wbsKey = `${line.wbsId ?? 'unassigned'}:${line.wbsItemId ?? 'unassigned'}`;
+      let wbsGroup = byWbs.get(wbsKey);
+      if (!wbsGroup) {
+        wbsGroup = {
+          wbsId: line.wbsId,
+          wbs: line.wbs,
+          wbsItemId: line.wbsItemId,
+          wbsItem: line.wbsItem,
+          lines: [],
+        };
+        byWbs.set(wbsKey, wbsGroup);
+      }
+      wbsGroup.lines.push(line);
+
+      const boqKey = `${line.boqId ?? 'unassigned'}:${line.boqLineId ?? 'unassigned'}`;
+      let boqGroup = byBoq.get(boqKey);
+      if (!boqGroup) {
+        boqGroup = {
+          boqId: line.boqId,
+          boq: line.boq,
+          boqLineId: line.boqLineId,
+          boqLine: line.boqLine,
+          lines: [],
+        };
+        byBoq.set(boqKey, boqGroup);
+      }
+      boqGroup.lines.push(line);
+    }
+
+    const withTotals = (groups: Map<string, any>) =>
+      [...groups.values()].map((group) => {
+        const groupTotals = totalsFor(group.lines);
+        return {
+          ...group,
+          totals: groupTotals,
+          commitments: group.lines.flatMap((line: any) => line.commitments),
+          ledger: group.lines.flatMap((line: any) => line.ledger),
+        };
+      });
+
+    const unallocated = {
+      commitments: commitmentsByLine.get('__unallocated__') ?? [],
+      ledger: ledgerByLine.get('__unallocated__') ?? [],
+    };
+
+    const hasFilter = Boolean(q.wbsId || q.wbsItemId || q.boqId || q.boqLineId || q.costHeadId);
+    const budgetFigures = normalizeFigures({
+      planned: toNumber(budget.totalPlanned),
+      committed: toNumber(budget.totalCommitted),
+      actual: toNumber(budget.totalActual),
+      forecast: toNumber(budget.totalForecast),
+      contingency: toNumber(budget.contingency),
+    });
+
+    return {
+      budget: {
+        id: budget.id,
+        code: budget.code,
+        name: budget.name,
+        status: budget.status,
+        currency: budget.currency,
+        projectId: budget.projectId,
+        siteId: budget.siteId,
+        project: budget.project,
+        baselineDate: budget.baselineDate,
+        lockedAt: budget.lockedAt,
+      },
+      filters: q,
+      totals: hasFilter
+        ? totalsFor(filtered)
+        : {
+            ...budgetFigures,
+            available: availableBudget(budgetFigures),
+            variance: varianceAmount(budgetFigures),
+            variancePercent:
+              budgetFigures.planned > 0 ? Number(((varianceAmount(budgetFigures) / budgetFigures.planned) * 100).toFixed(2)) : 0,
+            costToComplete: Number((budgetFigures.forecast - budgetFigures.actual).toFixed(2)),
+            utilization: utilizationPercent(budgetFigures),
+          },
+      byWbs: withTotals(byWbs),
+      byBoq: withTotals(byBoq),
+      byCostHead: rollupByCostHead(
+        filtered.map((line) => ({
+          costHeadId: line.costHeadId,
+          plannedAmount: line.planned,
+          committedAmount: line.committed,
+          actualAmount: line.actual,
+          forecastAmount: line.forecast,
+        })),
+      ),
+      unallocated,
+      lines: filtered,
     };
   }
 
@@ -621,7 +882,7 @@ export class BudgetService {
 
   async createCommitment(
     input: BudgetCommitmentInput,
-    options?: { enforceConfiguredHardStop?: boolean },
+    options?: { enforceConfiguredHardStop?: boolean; routeOverBudget?: boolean },
   ) {
     const orgId = requireOrgId();
     const amount = toNumber(input.committedAmount);
@@ -658,7 +919,10 @@ export class BudgetService {
       levels: threshold.levels,
     });
     if (!check.allowed) {
-      throw errors.conflict('Budget hard-stop limit exceeded', { check });
+      if (options?.routeOverBudget === false) {
+        throw errors.conflict('Budget hard-stop limit exceeded', { check });
+      }
+      return this.routeOverBudgetCommitment(input, budget, budgetLine, amount, check);
     }
 
     const commitment = await this.prisma.$transaction(async (tx) => {
@@ -698,7 +962,114 @@ export class BudgetService {
       return created;
     });
 
+    if (check.alertLevel) {
+      const message = `Commitment ${input.referenceNumber} pushes budget utilisation to ${check.projectedUtilization}%`;
+      void this.alertNotifier.deliver({
+        organizationId: orgId,
+        budgetId: budget.id,
+        budgetLineId: budgetLine?.id ?? null,
+        type: check.alertLevel,
+        threshold: check.projectedUtilization,
+        message,
+        details: check,
+      });
+    }
+
     return { commitment, check };
+  }
+
+  /**
+   * A commitment that breaches the configured hard stop is not silently accepted:
+   * it is parked as PENDING and routed through the approval workflow. The domain hook
+   * promotes it to COMMITTED only after the instance is approved.
+   */
+  private async routeOverBudgetCommitment(
+    input: BudgetCommitmentInput,
+    budget: any,
+    budgetLine: { id: string; costHeadId: string; siteId: string | null } | null,
+    amount: number,
+    check: any,
+  ) {
+    const orgId = requireOrgId();
+    const actor = actorId();
+    if (!actor) throw errors.unauthorized();
+
+    const pending = await this.prisma.budgetCommitment.create({
+      data: {
+        organizationId: orgId,
+        budgetId: budget.id,
+        budgetLineId: budgetLine?.id ?? null,
+        projectId: input.projectId,
+        entityType: input.entityType,
+        entityId: input.entityId,
+        referenceNumber: input.referenceNumber,
+        vendorId: input.vendorId ?? null,
+        description: input.description ?? null,
+        status: CommitmentStatus.PENDING,
+        committedAmount: new Prisma.Decimal(amount),
+        currency: input.currency,
+        committedBy: actor,
+      },
+    });
+
+    try {
+      const instance = await this.approval.start(
+        {
+          entityType: 'BUDGET_COMMITMENT',
+          entityId: pending.id,
+          title: `Budget approval: ${input.referenceNumber}`,
+          description: `Commitment of ${amount} ${input.currency} breaches the configured budget hard stop (projected ${check.projectedUtilization}%).`,
+          projectId: input.projectId,
+          siteId: budgetLine?.siteId ?? budget.siteId ?? null,
+          amount,
+          currency: input.currency,
+          metadata: {
+            budgetId: budget.id,
+            budgetLineId: budgetLine?.id ?? null,
+            costHeadId: budgetLine?.costHeadId ?? null,
+            referenceNumber: input.referenceNumber,
+            check,
+          },
+        },
+        { id: actor },
+      );
+
+      const commitment = await this.prisma.budgetCommitment.update({
+        where: { id: pending.id },
+        data: { approvalInstanceId: instance.id },
+      });
+
+      const type = (check.alertLevel ?? 'HARD_STOP') as BudgetAlertType;
+      const message = `Commitment ${input.referenceNumber} requires approval at ${check.projectedUtilization}% utilisation`;
+      await this.raiseAlert(this.prisma as unknown as Prisma.TransactionClient, {
+        organizationId: orgId,
+        budgetId: budget.id,
+        budgetLineId: budgetLine?.id ?? null,
+        type,
+        threshold: check.projectedUtilization,
+        message,
+        details: { ...check, approvalInstanceId: instance.id },
+      }).catch(() => undefined);
+      void this.alertNotifier.deliver({
+        organizationId: orgId,
+        budgetId: budget.id,
+        budgetLineId: budgetLine?.id ?? null,
+        type,
+        threshold: check.projectedUtilization,
+        message,
+        details: check,
+      });
+
+      return {
+        commitment,
+        check,
+        approvalRequired: true,
+        approvalInstance: { id: instance.id, status: instance.status },
+      };
+    } catch (error) {
+      await this.prisma.budgetCommitment.delete({ where: { id: pending.id } }).catch(() => undefined);
+      throw error;
+    }
   }
 
   async releaseCommitment(id: string, releasedAmount?: number, reason?: string | null) {

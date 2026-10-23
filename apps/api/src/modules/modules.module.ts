@@ -23,6 +23,7 @@ import { AiModule } from './ai/ai.module';
 import { PortalModule } from './portal/portal.module';
 import { ApprovalModule } from './approval/approval.module';
 import { BudgetModule } from './budget/budget.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { BudgetModule } from './budget/budget.module';
     WorkflowsModule,
     ApprovalModule,
     BudgetModule,
+    AuditModule,
     NotificationsModule,
     ReportsModule,
     AiModule,
@@ -53,4 +55,3 @@ import { BudgetModule } from './budget/budget.module';
   ],
 })
 export class ModulesModule {}
-

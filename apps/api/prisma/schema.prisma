@@ -2149,6 +2149,9 @@ model AuditLog {
   entityId       String?
   description    String?
   changes        Json     @default("{}")
+  before         Json?
+  after          Json?
+  correlationId  String?
   ipAddress      String?
   userAgent      String?
   severity       String   @default("INFO") // INFO | WARN | CRITICAL
@@ -2159,6 +2162,7 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([organizationId, entityType, entityId])
   @@index([userId, createdAt])
+  @@index([organizationId, correlationId])
 }
 
 model Notification {
@@ -2678,6 +2682,7 @@ model BudgetCommitment {
   vendorId        String?          @db.Uuid
   description     String?
   status          CommitmentStatus @default(PENDING)
+  approvalInstanceId String?       @db.Uuid
   committedAmount Decimal          @db.Decimal(16, 2)
   consumedAmount  Decimal          @default(0) @db.Decimal(16, 2)
   releasedAmount  Decimal          @default(0) @db.Decimal(16, 2)

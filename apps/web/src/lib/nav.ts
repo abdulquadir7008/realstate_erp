@@ -85,6 +85,7 @@ export const NAV: NavGroup[] = [
       { label: 'Invoices', href: '/dashboard/invoices', icon: FileText, perm: 'invoice:read' },
       { label: 'Accounts', href: '/dashboard/accounts', icon: Landmark, perm: 'account:read' },
       { label: 'Expenses', href: '/dashboard/expenses', icon: Wallet, perm: 'expense:read' },
+      { label: 'Budgets', href: '/dashboard/budgets', icon: Landmark, perm: 'budget:read' },
     ],
   },
   {
@@ -125,6 +126,7 @@ export const NAV: NavGroup[] = [
   {
     title: 'Automation',
     items: [
+      { label: 'Approvals', href: '/dashboard/approvals', icon: ShieldCheck, perm: 'approval:read' },
       { label: 'Workflows', href: '/dashboard/workflows', icon: Workflow, perm: 'workflow:read' },
       { label: 'Notifications', href: '/dashboard/notifications', icon: Bell, perm: 'notification:read' },
     ],

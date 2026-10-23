@@ -132,6 +132,22 @@ export class BudgetController {
     return this.service.getBudgetSummary(id);
   }
 
+  @Get(':id/drilldown')
+  @RequirePermissions('budget:read')
+  drilldown(@Param('id') id: string, @Query() q: unknown) {
+    const query = parseQuery(
+      z.object({
+        wbsId: z.string().uuid().optional(),
+        wbsItemId: z.string().uuid().optional(),
+        boqId: z.string().uuid().optional(),
+        boqLineId: z.string().uuid().optional(),
+        costHeadId: z.string().uuid().optional(),
+      }),
+      q,
+    );
+    return this.service.getBudgetDrilldown(id, query);
+  }
+
   @Post(':id/submit')
   @RequirePermissions('budget:update')
   submit(@Param('id') id: string) {

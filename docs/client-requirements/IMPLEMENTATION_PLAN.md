@@ -164,7 +164,7 @@ apps/api/src/modules/subcontractor/      New subcontractor module (placeholder)
 - Drill-down: Project → WBS → BOQ Line → Commitments (PO/WO) → Actuals
 - Variance report: Baseline | Revised | Committed | Actual | Forecast | Variance%
 
-**Backend status (2026-10-23):** Implemented as `apps/api/src/modules/budget/` with `/cost-heads`, `/budgets`, `/budgets/:id/{summary,submit,activate,lock,unlock,archive,revisions}`, `/budget-revisions`, `/budget-thresholds`, `/budget-commitments`, `/budget-ledger`, `/budget-alerts`, `/budgets/dashboard` and `/budgets/check`. PO creation records a commitment; GRN creation posts a goods-receipt ledger entry against the commitment. UI and approval-engine routing for over-budget commitments remain.
+**Status (2026-10-23):** Implemented as `apps/api/src/modules/budget/` with `/cost-heads`, `/budgets`, `/budgets/:id/{summary,drilldown,submit,activate,lock,unlock,archive,revisions}`, `/budget-revisions`, `/budget-thresholds`, `/budget-commitments`, `/budget-ledger`, `/budget-alerts`, `/budgets/dashboard` and `/budgets/check`. Over-budget commitments persist as PENDING and route to a `BUDGET_COMMITMENT` approval instance (approval marks COMMITTED, rejection cancels); threshold alerts write in-app notifications plus best-effort SMTP email. Web pages `/dashboard/budgets` and `/dashboard/approvals` wire the module. PO creation still records a commitment without blocking the PO itself.
 
 ---
 
@@ -173,11 +173,11 @@ apps/api/src/modules/subcontractor/      New subcontractor module (placeholder)
 **Objective:** Comprehensive audit trail for all mutating operations
 
 **Deliverables:**
-- [ ] Interceptor-based audit writer (async, non-blocking)
-- [ ] Capture: actor, action, resourceType, resourceId, before, after, timestamp, correlationId, ip, userAgent
-- [ ] Query API: filter by tenant, user, resource, date range, action
-- [ ] Retention policy (configurable, default 7 years)
-- [ ] Integration: All controllers use `AuditLogInterceptor` or service calls
+- [x] Interceptor-based audit writer (async, non-blocking)
+- [x] Capture: actor, action, resourceType, resourceId, before, after, timestamp, correlationId, ip, userAgent
+- [x] Query API: filter by tenant, user, resource, date range, action
+- [x] Retention policy (configurable, default 7 years)
+- [x] Integration: All controllers use `AuditLogInterceptor` or service calls
 
 **Files to Create/Modify:**
 ```
@@ -188,6 +188,8 @@ apps/api/src/modules/audit/audit.service.ts
 apps/api/src/modules/audit/audit.controller.ts
 apps/api/src/common/decorators.ts        + @Audited(action?) decorator
 ```
+
+**Status (2026-10-23):** Implemented in `apps/api/src/common/interceptors/audit-log.interceptor.ts`, `audit.util.ts` and `apps/api/src/modules/audit/`. Global interceptor records all mutating tenant requests; `GET /audit`, `/audit/stats`, `/audit/:id` and `POST /audit/prune` are exposed under the `audit:read` / `audit:manage` permissions.
 
 **Acceptance Criteria:**
 - Every POST/PATCH/DELETE on tenant resources creates audit entry
@@ -201,6 +203,8 @@ apps/api/src/common/decorators.ts        + @Audited(action?) decorator
 ### Sprint 10: Notification Delivery Abstraction (Weeks 21-22)
 
 **Objective:** Unified notification system with provider adapters
+
+**Status (2026-10-23):** Budget threshold alerts already deliver in-app notifications and SMTP email through `BudgetAlertNotifier`; the adapter/queue/preferences work below remains.
 
 **Deliverables:**
 - [ ] Adapter pattern: `InAppAdapter`, `EmailAdapter` (Nodemailer), `PushAdapter`, `WhatsAppAdapter`, `SMSAdapter`

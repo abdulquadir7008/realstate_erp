@@ -8,7 +8,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AccessModule } from './common/access/access.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ModulesModule } from './modules/modules.module';
+import { AuditModule } from './modules/audit/audit.module';
 import { TenantContextInterceptor } from './common/interceptors/tenant-context.interceptor';
+import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -28,6 +30,7 @@ import { HealthController } from './health.controller';
     AccessModule,
     AuthModule,
     ModulesModule,
+    AuditModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
@@ -35,6 +38,7 @@ import { HealthController } from './health.controller';
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_INTERCEPTOR, useClass: TenantContextInterceptor },
     { provide: APP_INTERCEPTOR, useClass: ResponseInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: AuditLogInterceptor },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
   ],
 })

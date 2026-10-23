@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ApprovalModule } from '../approval/approval.module';
 import { BudgetService } from './budget.service';
+import { BudgetAlertNotifier } from './budget-alert-notifier.service';
 import {
   BudgetAlertController,
   BudgetCommitmentController,
@@ -20,7 +22,8 @@ import {
     ProjectCostLedgerController,
     BudgetAlertController,
   ],
-  providers: [BudgetService],
+  imports: [ApprovalModule],
+  providers: [BudgetService, BudgetAlertNotifier],
   exports: [BudgetService],
 })
 export class BudgetModule {}

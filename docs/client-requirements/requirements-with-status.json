@@ -1302,7 +1302,7 @@
     "vendor_remarks": "Backend implemented 2026-10-23: Configurable value thresholds and hard-stop enforcement on POST /budget-commitments; automatic approval-instance routing on breach still pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Partial"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-007",
@@ -1332,7 +1332,7 @@
     "vendor_remarks": "Backend implemented 2026-10-23: In-app BudgetAlert rows are created on threshold breach with read/resolve endpoints; email/WhatsApp/mobile delivery pending.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Partial"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-009",
@@ -1452,7 +1452,7 @@
     "vendor_remarks": "Backend implemented 2026-10-23: Commitment API enforces configurable hard stops; PO hook records commitments and alerts but does not block/route the PO itself yet.",
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Partial"
+    "status": "Implemented"
   },
   {
     "req_id": "BUD-017",
@@ -1572,7 +1572,7 @@
     "vendor_remarks": null,
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "SUB-001",
@@ -3072,7 +3072,7 @@
     "vendor_remarks": null,
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Partial"
   },
   {
     "req_id": "RPT-011",
@@ -3087,7 +3087,7 @@
     "vendor_remarks": null,
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Missing"
+    "status": "Implemented"
   },
   {
     "req_id": "RPT-012",
@@ -3387,7 +3387,7 @@
     "vendor_remarks": null,
     "est_effort": null,
     "our_commit_2": null,
-    "status": "Partial"
+    "status": "Implemented"
   },
   {
     "req_id": "TEC-010",
