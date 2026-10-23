@@ -35,6 +35,7 @@ export const MODULES = [
   'handover',
   'report',
   'workflow',
+  'approval',
   'notification',
   'settings',
   'subscription',

@@ -510,6 +510,11 @@ model Organization {
   boqLines       BOQLine[]
   rateMasters    RateMaster[]
   rateVersions   RateVersion[]
+  approvalWorkflows      ApprovalWorkflow[]
+  approvalThresholds     ApprovalThreshold[]
+  approvalInstances      ApprovalInstance[]
+  approvalDelegations    ApprovalDelegation[]
+  approvalEscalationRules ApprovalEscalationRule[]
 }
 
 model Subscription {
@@ -2245,4 +2250,239 @@ model AiMessage {
   conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
+}
+
+// ============================================================ Approval Engine
+
+enum ApproverType {
+  USER
+  ROLE
+  PERMISSION
+}
+
+enum ApprovalGroupMode {
+  ALL
+  ANY
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELLED
+}
+
+enum ApprovalStepStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SKIPPED
+}
+
+enum ApprovalActionType {
+  SUBMITTED
+  APPROVED
+  REJECTED
+  RETURNED
+  DELEGATED
+  ESCALATED
+  CANCELLED
+  COMMENTED
+}
+
+enum ApprovalThresholdScope {
+  ORGANIZATION
+  PROJECT
+  SITE
+  COST_HEAD
+}
+
+enum EscalationAction {
+  NOTIFY
+  REASSIGN
+}
+
+model ApprovalWorkflow {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  code           String
+  name           String
+  entityType     String
+  description    String?
+  isActive       Boolean  @default(true)
+  version        Int      @default(1)
+  createdBy      String?  @db.Uuid
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  organization    Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  steps           ApprovalStep[]
+  thresholds      ApprovalThreshold[]
+  instances       ApprovalInstance[]
+  escalationRules ApprovalEscalationRule[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, entityType, isActive])
+}
+
+model ApprovalStep {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String            @db.Uuid
+  workflowId          String            @db.Uuid
+  sequence            Int
+  name                String
+  approverType        ApproverType
+  approverRole        String?
+  approverUserId      String?           @db.Uuid
+  approverPermission  String?
+  groupMode           ApprovalGroupMode @default(ALL)
+  requiredApprovals   Int               @default(1)
+  slaHours            Int?
+  isOptional          Boolean           @default(false)
+  createdAt           DateTime          @default(now())
+
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, sequence])
+}
+
+model ApprovalThreshold {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                 @db.Uuid
+  entityType     String
+  scopeType      ApprovalThresholdScope @default(ORGANIZATION)
+  scopeId        String?                @db.Uuid
+  workflowId     String                 @db.Uuid
+  minAmount      Decimal                @default(0) @db.Decimal(16, 2)
+  maxAmount      Decimal?               @db.Decimal(16, 2)
+  priority       Int                    @default(0)
+  isActive       Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow     ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, entityType, scopeType, priority])
+  @@index([workflowId])
+}
+
+model ApprovalInstance {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String         @db.Uuid
+  workflowId      String         @db.Uuid
+  entityType      String
+  entityId        String
+  title           String
+  description     String?
+  projectId       String?        @db.Uuid
+  siteId          String?        @db.Uuid
+  amount          Decimal?       @db.Decimal(16, 2)
+  currency        String         @default("INR")
+  status          ApprovalStatus @default(PENDING)
+  currentSequence Int            @default(1)
+  requestedBy     String         @db.Uuid
+  requestedAt     DateTime       @default(now())
+  completedAt     DateTime?
+  metadata        Json           @default("{}")
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow     ApprovalWorkflow         @relation(fields: [workflowId], references: [id])
+  steps        ApprovalInstanceStep[]
+  history      ApprovalHistory[]
+
+  @@index([organizationId, status, currentSequence])
+  @@index([organizationId, requestedBy, status])
+  @@index([entityType, entityId])
+}
+
+model ApprovalInstanceStep {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String             @db.Uuid
+  instanceId         String             @db.Uuid
+  templateStepId     String?            @db.Uuid
+  sequence           Int
+  name               String
+  approverType       ApproverType
+  approverRole       String?
+  approverUserId     String?            @db.Uuid
+  approverPermission String?
+  groupMode          ApprovalGroupMode  @default(ALL)
+  requiredApprovals  Int                @default(1)
+  isOptional         Boolean            @default(false)
+  status             ApprovalStepStatus @default(PENDING)
+  decidedAt          DateTime?
+  decidedBy          String?            @db.Uuid
+  delegatedFrom      String?            @db.Uuid
+  escalatedAt        DateTime?
+  escalationCount    Int                @default(0)
+  createdAt          DateTime           @default(now())
+
+  instance ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId, sequence, status])
+}
+
+model ApprovalHistory {
+  id             String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String             @db.Uuid
+  instanceId     String             @db.Uuid
+  instanceStepId String?            @db.Uuid
+  sequence       Int?
+  action         ApprovalActionType
+  actorId        String?            @db.Uuid
+  delegateId     String?            @db.Uuid
+  comment        String?
+  fromStatus     String?
+  toStatus       String?
+  metadata       Json               @default("{}")
+  createdAt      DateTime           @default(now())
+
+  instance ApprovalInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@index([instanceId, createdAt])
+}
+
+model ApprovalDelegation {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  delegatorId    String    @db.Uuid
+  delegateId     String    @db.Uuid
+  entityType     String?
+  workflowId     String?   @db.Uuid
+  validFrom      DateTime  @default(now())
+  validTo        DateTime?
+  isActive       Boolean   @default(true)
+  reason         String?
+  createdBy      String?   @db.Uuid
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, delegatorId, isActive])
+  @@index([organizationId, delegateId, isActive])
+}
+
+model ApprovalEscalationRule {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String           @db.Uuid
+  workflowId         String           @db.Uuid
+  stepSequence       Int?
+  afterHours         Int
+  action             EscalationAction @default(NOTIFY)
+  escalateToUserId   String?          @db.Uuid
+  escalateToRole     String?
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow     ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId, isActive])
 }

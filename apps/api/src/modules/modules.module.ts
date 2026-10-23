@@ -21,6 +21,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { ReportsModule } from './reports/reports.module';
 import { AiModule } from './ai/ai.module';
 import { PortalModule } from './portal/portal.module';
+import { ApprovalModule } from './approval/approval.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { PortalModule } from './portal/portal.module';
     TicketsModule,
     DocumentsModule,
     WorkflowsModule,
+    ApprovalModule,
     NotificationsModule,
     ReportsModule,
     AiModule,
