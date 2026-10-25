@@ -39,7 +39,7 @@ export default function SettingsPage() {
               <p className="text-base font-semibold">{name}</p>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
               <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {(user?.roles ?? []).map((r) => (
+                {(Array.isArray(user?.roles) ? user.roles : []).map((r) => (
                   <Badge key={r.code} tone="accent">
                     {r.name ?? r.code}
                   </Badge>
