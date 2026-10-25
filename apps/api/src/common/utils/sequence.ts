@@ -36,7 +36,7 @@ const DEFAULT_PREFIX: Record<string, string> = {
 export function requireTenantId(): string {
   const orgId = currentOrgId();
   if (!orgId) {
-    throw errors.badRequest(
+    throw errors.validation(
       'Missing tenant context for sequence generation. Please ensure you are logged in to an organization and try again.',
     );
   }

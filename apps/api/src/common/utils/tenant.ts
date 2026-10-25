@@ -5,7 +5,7 @@ import { errors } from '../api-error';
 export function requireOrgId(): string {
   const id = currentOrgId();
   if (!id) {
-    throw errors.badRequest(
+    throw errors.validation(
       'Missing tenant context. Please ensure you are logged in to an organization and try again.',
     );
   }
