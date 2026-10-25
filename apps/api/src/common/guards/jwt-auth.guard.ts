@@ -90,7 +90,7 @@ export class JwtAuthGuard implements CanActivate {
       lastName: payload.lastName ?? null,
       avatarUrl: payload.avatarUrl ?? null,
       scope: payload.scope,
-      organizationId: payload.organizationId ?? null,
+      organizationId: user.organizationId ?? payload.organizationId ?? null,
       roles: payload.roles ?? [],
       permissions: payload.permissions ?? [],
       isCustomer: Boolean(payload.isCustomer),

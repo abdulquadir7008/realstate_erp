@@ -4,7 +4,11 @@ import { errors } from '../api-error';
 /** Returns the current tenant id or throws when missing (tenant-only endpoints). */
 export function requireOrgId(): string {
   const id = currentOrgId();
-  if (!id) throw errors.internal('Missing tenant context');
+  if (!id) {
+    throw errors.badRequest(
+      'Missing tenant context. Please ensure you are logged in to an organization and try again.',
+    );
+  }
   return id;
 }
 

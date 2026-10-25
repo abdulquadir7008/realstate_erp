@@ -159,7 +159,7 @@ export class AuthService {
   }
 
   async issueTokens(session: SessionUser) {
-    const payload = { sub: session.id, ...session };
+    const payload = { sub: session.id, ...session, organizationId: session.organizationId ?? null };
     const accessToken = await this.jwt.signAsync({ ...payload }, { secret: env().JWT_ACCESS_SECRET, expiresIn: env().JWT_ACCESS_TTL as any });
     const refreshToken = randomBytes(32).toString('hex');
     const hashRt = await hash(refreshToken, 12);
