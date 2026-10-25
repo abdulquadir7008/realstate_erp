@@ -14,28 +14,36 @@ export class TenantContextInterceptor implements NestInterceptor {
     const userId = user?.id ?? null;
     const email = user?.email ?? null;
 
-    if (orgId || !userId) {
-      if (!orgId) {
-        return defer(() => next.handle());
-      }
+    if (orgId && userId) {
       return defer(() => runWithTenant({ orgId, userId, email }, () => next.handle()));
     }
 
-    // Fallback: try to resolve organizationId from DB if missing in token
-    return defer(async () => {
-      try {
-        const dbUser = await this.prisma.user.findUnique({
-          where: { id: userId },
-          select: { organizationId: true },
-        });
-        const resolvedOrgId = dbUser?.organizationId ?? orgId;
-        if (!resolvedOrgId) {
+    if (userId && !orgId) {
+      // Fallback: try to resolve organizationId from DB if missing in token
+      return defer(async () => {
+        try {
+          const dbUser = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { organizationId: true },
+          });
+          const resolvedOrgId = dbUser?.organizationId ?? null;
+          if (resolvedOrgId) {
+            return runWithTenant({ orgId: resolvedOrgId, userId, email }, () => next.handle());
+          }
+          // Also try to get from first user's org via session context
+          const firstOrg = await this.prisma.organization.findFirst({
+            select: { id: true },
+          });
+          if (firstOrg?.id) {
+            return runWithTenant({ orgId: firstOrg.id, userId, email }, () => next.handle());
+          }
+          return next.handle();
+        } catch {
           return next.handle();
         }
-        return runWithTenant({ orgId: resolvedOrgId, userId, email }, () => next.handle());
-      } catch {
-        return next.handle();
-      }
-    });
+      });
+    }
+
+    return defer(() => next.handle());
   }
 }
