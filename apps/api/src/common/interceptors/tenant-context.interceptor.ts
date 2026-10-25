@@ -26,13 +26,21 @@ export class TenantContextInterceptor implements NestInterceptor {
             where: { id: userId },
             select: { organizationId: true },
           });
-          const resolvedOrgId = dbUser?.organizationId ?? null;
-          if (resolvedOrgId) {
-            return runWithTenant({ orgId: resolvedOrgId, userId, email }, () => next.handle());
+          if (dbUser?.organizationId) {
+            return runWithTenant({ orgId: dbUser.organizationId, userId, email }, () => next.handle());
           }
-          // Also try to get from first user's org via session context
+          // Try to find any org associated with user's roles
+          const userRole = await this.prisma.userRole.findFirst({
+            where: { userId },
+            select: { orgId: true },
+          });
+          if (userRole?.orgId) {
+            return runWithTenant({ orgId: userRole.orgId, userId, email }, () => next.handle());
+          }
+          // Last resort: use the first organization (for single-tenant setups)
           const firstOrg = await this.prisma.organization.findFirst({
             select: { id: true },
+            where: { status: 'ACTIVE' },
           });
           if (firstOrg?.id) {
             return runWithTenant({ orgId: firstOrg.id, userId, email }, () => next.handle());
