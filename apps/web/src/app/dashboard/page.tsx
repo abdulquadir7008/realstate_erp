@@ -71,12 +71,21 @@ export default function DashboardPage() {
 
   if (isLoading) return <DashboardSkeleton />;
   if (error) return <p className="text-sm text-destructive">{(error as Error).message}</p>;
-  if (!data) return null;
+  if (!data || !data.kpi) return null;
 
   const k = data.kpi;
-  const trend = Array.isArray(data?.salesTrend) ? data.salesTrend.map((s, i) => ({ month: s.month, sales: s.value, collections: Array.isArray(data?.collectionsTrend) ? data.collectionsTrend[i]?.value ?? 0 : 0 })) : [];
-  const unitsDonut = Array.isArray(data?.unitsByStatus) ? data.unitsByStatus.filter((u) => u.count > 0).map((u) => ({ name: titleize(u.status), value: u.count })) : [];
-  const sourceDonut = Array.isArray(data?.leadsBySource) ? data.leadsBySource.filter((s) => s.count > 0).map((s) => ({ name: titleize(s.source), value: s.count })) : [];
+  const salesTrend = Array.isArray(data?.salesTrend) ? data.salesTrend : [];
+  const collectionsTrend = Array.isArray(data?.collectionsTrend) ? data.collectionsTrend : [];
+  const unitsByStatus = Array.isArray(data?.unitsByStatus) ? data.unitsByStatus : [];
+  const leadsBySource = Array.isArray(data?.leadsBySource) ? data.leadsBySource : [];
+  const unitsByType = Array.isArray(data?.unitsByType) ? data.unitsByType : [];
+  const recentBookings = Array.isArray(data?.recentBookings) ? data.recentBookings : [];
+  const recentLeads = Array.isArray(data?.recentLeads) ? data.recentLeads : [];
+  const upcomingTasks = Array.isArray(data?.upcomingTasks) ? data.upcomingTasks : [];
+
+  const trend = salesTrend.map((s, i) => ({ month: s.month, sales: s.value, collections: collectionsTrend[i]?.value ?? 0 }));
+  const unitsDonut = unitsByStatus.filter((u) => u.count > 0).map((u) => ({ name: titleize(u.status), value: u.count }));
+  const sourceDonut = leadsBySource.filter((s) => s.count > 0).map((s) => ({ name: titleize(s.source), value: s.count }));
 
   return (
     <div className="space-y-6">
@@ -137,7 +146,7 @@ export default function DashboardPage() {
               <>
                 <Donut data={unitsDonut} />
                 <div className="mt-2 space-y-1.5">
-                  {data.unitsByStatus.filter((u) => u.count > 0).map((u, i) => (
+                  {unitsByStatus.filter((u) => u.count > 0).map((u, i) => (
                     <div key={u.status} className="flex items-center justify-between text-xs">
                       <span className="flex items-center gap-2 text-muted-foreground">
                         <span className="h-2.5 w-2.5 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
@@ -185,9 +194,9 @@ export default function DashboardPage() {
             <CardTitle>Sales pipeline</CardTitle>
           </CardHeader>
           <CardContent>
-            {data.unitsByType.length ? (
+            {unitsByType.length ? (
               <BarsChart
-                data={data.unitsByType.map((t) => ({ name: titleize(t.type), count: t.count }))}
+                data={unitsByType.map((t) => ({ name: titleize(t.type), count: t.count }))}
                 xKey="name"
                 layout="vertical"
                 series={[{ key: 'count', label: 'Units', color: CHART_COLORS[2] }]}
