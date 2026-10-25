@@ -18,7 +18,7 @@ export class TenantContextInterceptor implements NestInterceptor {
       return defer(() => runWithTenant({ orgId, userId, email }, () => next.handle()));
     }
 
-    if (userId && !orgId) {
+    if (userId) {
       // Fallback: try to resolve organizationId from DB if missing in token
       return defer(async () => {
         try {
@@ -32,15 +32,17 @@ export class TenantContextInterceptor implements NestInterceptor {
           // Try to find any org associated with user's roles
           const userRole = await this.prisma.userRole.findFirst({
             where: { userId },
-            select: { orgId: true },
+            select: { orgId: true, role: { select: { organizationId: true } } },
           });
           if (userRole?.orgId) {
             return runWithTenant({ orgId: userRole.orgId, userId, email }, () => next.handle());
           }
+          if ((userRole as any)?.role?.organizationId) {
+            return runWithTenant({ orgId: (userRole as any).role.organizationId, userId, email }, () => next.handle());
+          }
           // Last resort: use the first organization (for single-tenant setups)
           const firstOrg = await this.prisma.organization.findFirst({
             select: { id: true },
-            where: { status: 'ACTIVE' },
           });
           if (firstOrg?.id) {
             return runWithTenant({ orgId: firstOrg.id, userId, email }, () => next.handle());
