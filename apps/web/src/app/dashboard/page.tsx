@@ -74,9 +74,9 @@ export default function DashboardPage() {
   if (!data) return null;
 
   const k = data.kpi;
-  const trend = data.salesTrend.map((s, i) => ({ month: s.month, sales: s.value, collections: data.collectionsTrend[i]?.value ?? 0 }));
-  const unitsDonut = data.unitsByStatus.filter((u) => u.count > 0).map((u) => ({ name: titleize(u.status), value: u.count }));
-  const sourceDonut = data.leadsBySource.filter((s) => s.count > 0).map((s) => ({ name: titleize(s.source), value: s.count }));
+  const trend = Array.isArray(data?.salesTrend) ? data.salesTrend.map((s, i) => ({ month: s.month, sales: s.value, collections: Array.isArray(data?.collectionsTrend) ? data.collectionsTrend[i]?.value ?? 0 : 0 })) : [];
+  const unitsDonut = Array.isArray(data?.unitsByStatus) ? data.unitsByStatus.filter((u) => u.count > 0).map((u) => ({ name: titleize(u.status), value: u.count })) : [];
+  const sourceDonut = Array.isArray(data?.leadsBySource) ? data.leadsBySource.filter((s) => s.count > 0).map((s) => ({ name: titleize(s.source), value: s.count })) : [];
 
   return (
     <div className="space-y-6">
