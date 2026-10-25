@@ -7,11 +7,11 @@ const USER_KEY = 're_user';
 export interface AuthUser {
   id: string;
   email: string;
-  firstName: string;
-  lastName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   avatarUrl?: string | null;
   scope?: 'TENANT' | 'SAAS' | string;
-  organizationId: string;
+  organizationId?: string | null;
   organization?: { id: string; name: string; slug?: string; status?: string } | null;
   roles?: { code: string; name: string }[];
   permissions?: string[];
