@@ -1,0 +1,54 @@
+
+enum TenderSource {
+  GEM
+  CPPP
+  UTILITY_PORTAL
+  INTERNAL_REFERRAL
+  OTHER
+}
+
+enum TenderStatus {
+  DRAFT
+  IN_REVIEW
+  QUALIFICATION
+  GO_DECISION
+  COSTING
+  SUBMISSION_READY
+  SUBMITTED
+  OPENED
+  EVALUATED
+  WON
+  LOST
+  WITHDRAWN
+  CANCELLED
+}
+
+enum TenderQualificationStatus {
+  COMPLIANT
+  PARTIALLY_COMPLIANT
+  NON_COMPLIANT
+  PENDING
+}
+
+enum TenderGoDecision {
+  GO
+  NO_GO
+  PENDING
+}
+
+enum TenderRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TenderOutcomeReason {
+  PRICE
+  TECHNICAL
+  TIMELINES
+  CAPABILITY
+  COMPETITOR
+  SCOPE
+  OTHER
+}

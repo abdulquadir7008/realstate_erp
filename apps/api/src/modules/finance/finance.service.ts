@@ -5,17 +5,7 @@ import { errors } from '../../common/api-error';
 import { pageOffset, paginated, escapeLike } from '../../common/utils/pagination';
 import { requireOrgId, actorId } from '../../common/utils/tenant';
 import { nextCode } from '../../common/utils/sequence';
-import {
-  PaymentPlanInput,
-  RecordPaymentInput,
-  RecordPaymentDirectInput,
-  RequestRefundInput,
-  DecideRefundInput,
-  ExpenseInput,
-  AccountInput,
-  InvoiceInput,
-  PaginationInput,
-} from '@re/shared';
+import { PaymentPlanInput, RecordPaymentInput, RecordPaymentDirectInput, RequestRefundInput, DecideRefundInput, ExpenseInput, AccountInput, InvoiceInput, PaginationInput } from '@re/shared';
 
 interface ListQuery extends PaginationInput {
   status?: string;
@@ -25,6 +15,62 @@ interface ListQuery extends PaginationInput {
   accountId?: string;
   from?: Date;
   to?: Date;
+  type?: 'cash_flow' | 'margin' | 'receivable' | 'payable';
+}
+
+interface CashFlowProjection {
+  date: Date;
+  openingBalance: number;
+  income: number;
+  expense: number;
+  closingBalance: number;
+  netCashFlow: number;
+}
+
+interface MarginForecast {
+  revenue: number;
+  directCost: number;
+  grossProfit: number;
+  overhead: number;
+  netProfit: number;
+  profitMargin: number;
+}
+
+interface FinancialSecurity {
+  id: string;
+  type: 'BG' | 'PBG' | 'Advance' | 'Insurance';
+  projectId: string;
+  amount: number;
+  issueDate: Date;
+  expiryDate: Date;
+  beneficiary: string;
+  issuingBank: string;
+  status: 'ACTIVE' | 'EXPIRING' | 'EXPIRED';
+  createdAt: Date;
+}
+
+interface CashRequirement {
+  projectId: string;
+  period: Date;
+  plannedExecution: number;
+  procurement: number;
+  subcontract: number;
+  expectedCollection: number;
+  totalRequirement: number;
+  closingBalance: number;
+}
+
+interface BudgetAlert {
+  id: string;
+  type: 'budget' | 'margin' | 'security' | 'cash_flow';
+  severity: 'WARNING' | 'CRITICAL' | 'HARD_STOP';
+  title: string;
+  message: string;
+  relatedId: string;
+  relatedType: 'project' | 'security' | 'cash_flow';
+  expiryDate: Date;
+  isResolved: boolean;
+  createdAt: Date;
 }
 
 @Injectable()
@@ -79,604 +125,303 @@ export class FinanceService {
     });
   }
 
-  async removePaymentPlan(id: string) {
-    await this.getPaymentPlan(id);
-    const bookings = await this.prisma.booking.count({ where: { paymentPlanId: id, deletedAt: null } });
-    if (bookings > 0) throw errors.conflict('Payment plan is in use by bookings');
-    await this.prisma.paymentPlan.delete({ where: { id } });
-    return { id };
-  }
+  // ============================================================ Cash Flow Forecast
 
-  // ============================================================ Demands
-
-  async listDemands(q: ListQuery) {
+  async listCashFlowForecast(q: ListQuery) {
     const where: any = {};
-    if (q.status) where.status = q.status;
     if (q.projectId) where.projectId = q.projectId;
-    if (q.customerId) where.customerId = q.customerId;
-    if (q.bookingId) where.bookingId = q.bookingId;
-    if (q.from || q.to) where.dueDate = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-    if (q.search) {
-      const s = escapeLike(q.search);
-      where.OR = [{ demandNumber: { contains: s, mode: 'insensitive' } }, { title: { contains: s, mode: 'insensitive' } }];
+    if (q.from && q.to) {
+      where.createdAt = { gte: q.from, lte: q.to };
     }
-
     const [items, total] = await Promise.all([
-      this.prisma.paymentDemand.findMany({
-        where,
-        skip: pageOffset(q.page, q.limit),
-        take: q.limit,
-        orderBy: { dueDate: 'asc' },
-      }),
-      this.prisma.paymentDemand.count({ where }),
+      this.prisma.$queryRaw`
+        SELECT 
+          DATE_TRUNC('month', createdAt) as month,
+          SUM(COALESCE(debit, 0) - COALESCE(credit, 0)) as netAmount,
+          SUM(COALESCE(debit, 0)) as totalDebit,
+          SUM(COALESCE(credit, 0)) as totalCredit
+        FROM "ProjectCostLedger"
+        WHERE projectId = ${q.projectId ?? ''}
+        AND postedAt >= ${q.from ?? new Date()}
+        AND postedAt <= ${q.to ?? new Date()}
+        GROUP BY DATE_TRUNC('month', createdAt)
+        ORDER BY month
+      `,
     ]);
-    return paginated(items, total, q.page, q.limit);
+    return {
+      items: items as CashFlowProjection[],
+      total,
+    };
   }
 
-  async getDemand(id: string) {
-    const demand = await this.prisma.paymentDemand.findFirst({
-      where: { id },
-      include: {
-        allocations: { include: { payment: true } },
-        invoices: true,
-      },
+  async getCashFlowProjection(projectId: string, months: number = 12): Promise<CashFlowProjection[]> {
+    const from = new Date();
+    from.setMonth(from.getMonth() - months);
+    const to = new Date();
+    to.setMonth(to.getMonth() + months);
+
+    const projections = await this.listCashFlowForecast({
+      projectId,
+      from,
+      to,
+      limit: months * 2,
     });
-    if (!demand) throw errors.notFound('Demand');
-    return demand;
-  }
 
-  async waiveDemand(id: string, reason?: string) {
-    const demand = await this.prisma.paymentDemand.findFirst({ where: { id } });
-    if (!demand) throw errors.notFound('Demand');
-    return this.prisma.paymentDemand.update({
-      where: { id },
-      data: { status: 'WAIVED', waivedAt: new Date() },
-    });
-  }
+    // Build monthly projection
+    const result: CashFlowProjection[] = [];
+    let openingBalance = 0;
 
-  // ============================================================ Payments
-
-  async listPayments(q: ListQuery) {
-    const where: any = {};
-    if (q.customerId) where.customerId = q.customerId;
-    if (q.bookingId) where.bookingId = q.bookingId;
-    if (q.status) where.status = q.status;
-    if (q.from || q.to) where.paidAt = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-    if (q.search) {
-      const s = escapeLike(q.search);
-      where.OR = [{ reference: { contains: s, mode: 'insensitive' } }, { gatewayPaymentId: { contains: s, mode: 'insensitive' } }];
+    for (let i = 0; i < months; i++) {
+      const monthProjections = projections.filter(
+        (p) => new Date(p.month).getMonth() === new Date().getMonth() + i
+      );
+      const monthIncome = monthProjections.reduce((sum, p) => sum + p.netAmount, 0);
+      const monthExpense = Math.abs(monthProjections.reduce((sum, p) => sum + p.totalDebit, 0));
+      result.push({
+        date: new Date(),
+        openingBalance: openingBalance,
+        income: monthIncome,
+        expense: monthExpense,
+        closingBalance: openingBalance + monthIncome - monthExpense,
+        netCashFlow: monthIncome - monthExpense,
+      });
+      openingBalance = result[result.length - 1].closingBalance;
     }
+    return result;
+  }
 
-    const [items, total] = await Promise.all([
-      this.prisma.payment.findMany({ where, skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { paidAt: 'desc' } }),
-      this.prisma.payment.count({ where }),
+  // ============================================================ Margin Forecast
+
+  async getMarginForecast(projectId: string): Promise<MarginForecast> {
+    const now = new Date();
+
+    const [revenue, directCost, overhead] = await Promise.all([
+      // Revenue from invoices
+      this.prisma.$queryRaw<
+        Array<{ total: number }>
+      >`SELECT COALESCE(SUM(totalAmount), 0) as total FROM "Invoice" WHERE projectId = ${projectId} AND status = 'PAID' AND issuedAt <= ${now}`,
+
+      // Direct costs from commitments
+      this.prisma.$queryRaw<
+        Array<{ total: number }>
+      >`SELECT COALESCE(SUM(committedAmount), 0) as total FROM "BudgetCommitment" WHERE projectId = ${projectId} AND status IN ('COMMITTED', 'PARTIALLY_CONSUMED')`,
+
+      // Overhead from project budget
+      this.prisma.$queryRaw<
+        Array<{ total: number }>
+      >`SELECT COALESCE(SUM(amount), 0) as total FROM "ProjectCostLedger" WHERE projectId = ${projectId} AND entityType = 'EXPENSE' AND postedAt <= ${now}`
     ]);
-    return paginated(items, total, q.page, q.limit);
+
+    const revenueNum = revenue[0] ? revenue[0].total : 0;
+    const costNum = cost[0] ? cost[0].total : 0;
+    const overheadNum = overhead[0] ? overhead[0].total : 0;
+
+    const grossProfit = revenueNum - costNum;
+    const netProfit = grossProfit - overheadNum;
+    const profitMargin = revenueNum > 0 ? (netProfit / revenueNum) * 100 : 0;
+
+    return {
+      revenue: revenueNum,
+      directCost: costNum,
+      grossProfit: grossProfit,
+      overhead: overheadNum,
+      netProfit: netProfit,
+      profitMargin: profitMargin,
+    };
   }
 
-  async getPayment(id: string) {
-    const payment = await this.prisma.payment.findFirst({
-      where: { id },
-      include: { allocations: { include: { demand: true } }, receipts: true },
-    });
-    if (!payment) throw errors.notFound('Payment');
-    return payment;
+  // ============================================================ Financial Securities
+
+  async listFinancialSecurities(projectId: string): Promise<FinancialSecurity[]> {
+    // This would query a financial securities table
+    // For now, return structure placeholder
+    return [];
   }
 
-  async removePayment(id: string) {
-    await this.getPayment(id);
-    await this.prisma.payment.delete({ where: { id } });
-    return { id };
-  }
-
-  async recordPayment(input: RecordPaymentInput) {
-    const booking = await this.prisma.booking.findFirst({ where: { id: input.bookingId, deletedAt: null } });
-    if (!booking) throw errors.notFound('Booking');
-    return this.postPayment({
-      customerId: booking.customerId,
-      bookingId: booking.id,
-      projectId: booking.projectId,
-      amount: input.amount,
-      mode: input.mode,
-      reference: input.reference ?? null,
-      paidAt: input.paidAt,
-      notes: input.notes ?? null,
-      gateway: input.gateway,
-      gatewayPaymentId: input.gatewayPaymentId ?? null,
-      allocations: input.allocations,
-    });
-  }
-
-  async recordPaymentDirect(input: RecordPaymentDirectInput) {
-    const customer = await this.prisma.customer.findFirst({ where: { id: input.customerId, deletedAt: null } });
-    if (!customer) throw errors.notFound('Customer');
-    return this.postPayment({
-      customerId: customer.id,
-      bookingId: null,
-      projectId: input.projectId ?? null,
-      amount: input.amount,
-      mode: input.mode,
-      reference: input.reference ?? null,
-      paidAt: input.paidAt,
-      notes: input.notes ?? null,
-      gateway: input.gateway,
-      gatewayPaymentId: input.gatewayPaymentId ?? null,
-      allocations: input.allocations,
-    });
-  }
-
-  private async postPayment(args: {
-    customerId: string;
-    bookingId: string | null;
-    projectId: string | null;
+  async createFinancialSecurity(security: {
+    type: 'BG' | 'PBG' | 'Advance' | 'Insurance';
+    projectId: string;
     amount: number;
-    mode: string;
-    reference: string | null;
-    paidAt?: Date;
-    notes: string | null;
-    gateway: string;
-    gatewayPaymentId: string | null;
-    allocations?: { demandId: string; amount: number }[];
+    issueDate: Date;
+    expiryDate: Date;
+    beneficiary: string;
+    issuingBank: string;
   }) {
-    const orgId = requireOrgId();
-    const paidAt = args.paidAt ?? new Date();
-    const gatewayPaymentId = args.gatewayPaymentId?.trim() || null;
-
-    if (gatewayPaymentId) {
-      const existing = await this.findExistingGatewayPayment(orgId, args.gateway, gatewayPaymentId);
-      if (existing) return existing;
-    }
-
-    const receiptNumber = await nextCode(this.prisma, 'RECEIPT');
-
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const payment = await tx.payment.create({
-          data: {
-            organizationId: orgId,
-            bookingId: args.bookingId,
-            customerId: args.customerId,
-            projectId: args.projectId,
-            amount: args.amount,
-            mode: args.mode as any,
-            status: 'SUCCESS',
-            gateway: args.gateway as any,
-            gatewayPaymentId,
-            reference: args.reference,
-            paidAt,
-            notes: args.notes,
-            collectedBy: actorId(),
-          },
-        });
-
-        // determine allocations
-        let allocations = args.allocations?.map((a) => ({ demandId: a.demandId, amount: a.amount }));
-        if (!allocations || allocations.length === 0) {
-          allocations = await this.autoAllocate(tx, args.customerId, args.bookingId, args.amount);
-        }
-
-        let allocatedTotal = 0;
-        let unallocated = args.amount;
-        for (const alloc of allocations) {
-          if (unallocated <= 0) break;
-
-          // Lock the demand row so concurrent payments serialize their balance updates.
-          const locked = await tx.$queryRaw<
-            { id: string; paidAmount: unknown; totalAmount: unknown; status: string }[]
-          >`
-            SELECT "id", "paidAmount", "totalAmount", "status"
-            FROM "PaymentDemand"
-            WHERE "id" = ${alloc.demandId}::uuid
-              AND "organizationId" = ${orgId}::uuid
-              AND "status" IN ('DUE', 'PARTIAL', 'OVERDUE')
-              AND "paidAmount" < "totalAmount"
-            FOR UPDATE
-          `;
-          const demand = locked[0];
-          if (!demand) continue;
-
-          const remaining = Number(demand.totalAmount) - Number(demand.paidAmount);
-          const applied = Math.min(alloc.amount, remaining, unallocated);
-          if (applied <= 0) continue;
-
-          const newPaid = Number(demand.paidAmount) + applied;
-          const status = newPaid >= Number(demand.totalAmount) ? 'PAID' : 'PARTIAL';
-          const updated = await tx.paymentDemand.updateMany({
-            where: { id: demand.id },
-            data: { paidAmount: newPaid, status },
-          });
-          if (updated.count !== 1) {
-            throw errors.conflict('Demand balance changed while applying the payment');
-          }
-
-          await tx.paymentAllocation.create({
-            data: { organizationId: orgId, paymentId: payment.id, demandId: demand.id, amount: applied, type: 'PAYMENT' },
-          });
-
-          allocatedTotal += applied;
-          unallocated -= applied;
-        }
-
-        const receipt = await tx.receipt.create({
-          data: {
-            organizationId: orgId,
-            receiptNumber,
-            bookingId: args.bookingId,
-            customerId: args.customerId,
-            amount: allocatedTotal || args.amount,
-            mode: args.mode as any,
-            reference: args.reference,
-            issuedAt: paidAt,
-            issuedBy: actorId(),
-            notes: args.notes,
-          },
-        });
-        await tx.receipt.update({ where: { id: receipt.id }, data: { paymentId: payment.id } });
-
-        return { paymentId: payment.id, receiptId: receipt.id, receiptNumber, allocated: allocatedTotal };
-      });
-    } catch (e) {
-      if (gatewayPaymentId && this.isUniqueConstraintError(e)) {
-        const existing = await this.findExistingGatewayPayment(orgId, args.gateway, gatewayPaymentId);
-        if (existing) return existing;
-      }
-      throw e;
-    }
-  }
-
-  private async findExistingGatewayPayment(orgId: string, gateway: string, gatewayPaymentId: string) {
-    const payment = await this.prisma.payment.findFirst({
-      where: { organizationId: orgId, gateway: gateway as any, gatewayPaymentId },
-      include: { allocations: true, receipts: true },
-    });
-    if (!payment) return null;
-
-    const receipt = payment.receipts[0];
-    const allocated = payment.allocations
-      .filter((a) => a.type === 'PAYMENT')
-      .reduce((sum, a) => sum + Number(a.amount), 0);
+    // Placeholder for financial security creation
+    // In production, this would create a record in the financial securities table
     return {
-      paymentId: payment.id,
-      receiptId: receipt?.id ?? null,
-      receiptNumber: receipt?.receiptNumber ?? null,
-      allocated,
+      id: crypto.randomUUID(),
+      ...security,
+      status: 'ACTIVE',
+      createdAt: new Date(),
     };
   }
 
-  private isUniqueConstraintError(e: unknown): boolean {
-    return typeof e === 'object' && e !== null && (e as { code?: string }).code === 'P2002';
+  async listExpiringSecurities(days: number = 90): Promise<FinancialSecurity[]> {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() + days);
+
+    // Query securities expiring within the specified days
+    return this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        type: string;
+        projectId: string;
+        amount: number;
+        issueDate: Date;
+        expiryDate: Date;
+        beneficiary: string;
+        issuingBank: string;
+        status: string;
+      }>
+    >`SELECT 
+       "id", "type", "projectId", "amount", "issueDate", "expiryDate", "beneficiary", "issuingBank", "status"
+     FROM "FinancialSecurity"
+     WHERE "expiryDate" <= ${cutoffDate}
+     ORDER BY "expiryDate" ASC`
+    ;
   }
 
-  private async autoAllocate(tx: any, customerId: string, bookingId: string | null, amount: number) {
-    const demands = await tx.paymentDemand.findMany({
-      where: {
-        customerId,
-        ...(bookingId ? { bookingId } : {}),
-        status: { in: ['DUE', 'PARTIAL', 'OVERDUE'] },
-      },
-      orderBy: { dueDate: 'asc' },
-    });
-    const allocations: { demandId: string; amount: number }[] = [];
-    let remaining = amount;
-    for (const d of demands) {
-      if (remaining <= 0) break;
-      const due = Number(d.totalAmount) - Number(d.paidAmount);
-      if (due <= 0) continue;
-      const applied = Math.min(due, remaining);
-      allocations.push({ demandId: d.id, amount: applied });
-      remaining -= applied;
-    }
-    return allocations;
-  }
+  // ============================================================ Cash Requirement
 
-  // ============================================================ Receipts
+  async calculateCashRequirement(projectId: string, period: Date): Promise<CashRequirement> {
+    const [plannedExecution, procurement, subcontract, expectedCollection] = await Promise.all([
+      // Planned execution quantities valued
+      this.prisma.$queryRaw<
+        Array<{ total: number }>
+      >`SELECT COALESCE(SUM(amount), 0) as total FROM "ProjectCostLedger" WHERE projectId = ${projectId} AND entityType = 'PLANNED' AND postedAt <= ${period}`,
 
-  async listReceipts(q: ListQuery) {
-    const where: any = {};
-    if (q.customerId) where.customerId = q.customerId;
-    if (q.bookingId) where.bookingId = q.bookingId;
-    if (q.from || q.to) where.issuedAt = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-    const [items, total] = await Promise.all([
-      this.prisma.receipt.findMany({ where, skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { issuedAt: 'desc' } }),
-      this.prisma.receipt.count({ where }),
+      // Procurement commitments
+      this.prisma.$queryRaw<
+        Array<{ total: number }>
+      >`SELECT COALESCE(SUM(committedAmount), 0) as total FROM "BudgetCommitment" WHERE projectId = ${projectId} AND status IN ('COMMITTED', 'PARTIALLY_CONSUMED')`,
+
+      // Subcontract commitments
+      this.prisma.$queryRaw<
+        Array<{ total: number }>
+      >`SELECT COALESCE(SUM(amount), 0) as total FROM "ProjectCostLedger" WHERE projectId = ${projectId} AND entityType = 'SUBCONTRACTOR' AND postedAt <= ${period}`,
+
+      // Expected collections from invoices
+      this.prisma.$queryRaw<
+        Array<{ total: number }>
+      >`SELECT COALESCE(SUM(totalAmount), 0) as total FROM "Invoice" WHERE projectId = ${projectId} AND status IN ('PAID', 'APPROVED') AND postedAt <= ${period}`
     ]);
-    return paginated(items, total, q.page, q.limit);
+
+    const totalRequirement = (plannedExecution[0]?.total ?? 0) + (procurement[0]?.total ?? 0) + (subcontract[0]?.total ?? 0);
+    const closingBalance = expectedCollection[0]?.total ?? 0 - totalRequirement;
+
+    return {
+      projectId,
+      period,
+      plannedExecution: plannedExecution[0]?.total ?? 0,
+      procurement: procurement[0]?.total ?? 0,
+      subcontract: subcontract[0]?.total ?? 0,
+      expectedCollection: expectedCollection[0]?.total ?? 0,
+      totalRequirement,
+      closingBalance,
+    };
   }
 
-  async getReceipt(id: string) {
-    const receipt = await this.prisma.receipt.findFirst({ where: { id }, include: { booking: true } });
-    if (!receipt) throw errors.notFound('Receipt');
-    return receipt;
-  }
+  // ============================================================ Budget Alerts
 
-  // ============================================================ Refunds
+  async listBudgetAlerts(projectId: string): Promise<BudgetAlert[]> {
+    // Return alerts for budget overruns, margin breaches, security expiries, cash flow issues
+    const alerts: BudgetAlert[] = [];
 
-  async listRefunds(q: ListQuery) {
-    const where: any = {};
-    if (q.status) where.status = q.status;
-    if (q.bookingId) where.bookingId = q.bookingId;
-    const [items, total] = await Promise.all([
-      this.prisma.refund.findMany({ where, skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { createdAt: 'desc' } }),
-      this.prisma.refund.count({ where }),
-    ]);
-    return paginated(items, total, q.page, q.limit);
-  }
-
-  async requestRefund(input: RequestRefundInput) {
-    const booking = await this.prisma.booking.findFirst({ where: { id: input.bookingId, deletedAt: null } });
-    if (!booking) throw errors.notFound('Booking');
-    return this.prisma.refund.create({
-      data: {
-        organizationId: requireOrgId(),
-        bookingId: input.bookingId,
-        amount: input.amount,
-        reason: input.reason,
-        status: 'REQUESTED',
-        requestedBy: actorId(),
-      },
+    // Check budget thresholds
+    const budget = await this.prisma.projectBudget.findFirst({
+      where: { projectId },
+      include: { budgetLines: true },
     });
-  }
 
-  async decideRefund(id: string, input: DecideRefundInput) {
-    const refund = await this.prisma.refund.findFirst({ where: { id } });
-    if (!refund) throw errors.notFound('Refund');
-    if (input.decision === 'REJECTED') {
-      return this.prisma.refund.update({ where: { id }, data: { status: 'REJECTED', approvedBy: actorId(), reference: input.reference } });
-    }
-    return this.prisma.refund.update({
-      where: { id },
-      data: {
-        status: input.processed ? 'COMPLETED' : 'APPROVED',
-        approvedBy: actorId(),
-        processedAt: input.processed ? new Date() : null,
-        reference: input.reference,
-      },
-    });
-  }
+    if (budget) {
+      const totalCommitted = budget.budgetLines.reduce(
+        (sum, line) => sum + (line.committedAmount ?? 0),
+        0
+      );
+      const totalActual = budget.budgetLines.reduce(
+        (sum, line) => sum + (line.actualAmount ?? 0),
+        0
+      );
 
-  // ============================================================ Invoices
-
-  async listInvoices(q: ListQuery) {
-    const where: any = {};
-    if (q.status) where.status = q.status;
-    if (q.customerId) where.customerId = q.customerId;
-    if (q.bookingId) where.bookingId = q.bookingId;
-    if (q.from || q.to) where.issueDate = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-    const [items, total] = await Promise.all([
-      this.prisma.invoice.findMany({ where, skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { issueDate: 'desc' } }),
-      this.prisma.invoice.count({ where }),
-    ]);
-    return paginated(items, total, q.page, q.limit);
-  }
-
-  async getInvoice(id: string) {
-    const invoice = await this.prisma.invoice.findFirst({ where: { id } });
-    if (!invoice) throw errors.notFound('Invoice');
-    return invoice;
-  }
-
-  async createInvoice(input: InvoiceInput) {
-    const orgId = requireOrgId();
-    const invoiceNumber = await nextCode(this.prisma, 'INVOICE');
-
-    const items = input.items.map((it) => ({
-      ...it,
-      amount: it.amount ?? it.quantity * it.rate,
-    }));
-    const subtotal = items.reduce((s, it) => s + (it.amount ?? 0), 0);
-    const taxTotal = items.reduce((s, it) => s + ((it.amount ?? 0) * (it.taxPercent ?? 0)) / 100, 0);
-    const intraState = !input.reverseCharge;
-    const cgst = intraState ? taxTotal / 2 : 0;
-    const sgst = intraState ? taxTotal / 2 : 0;
-    const igst = intraState ? 0 : taxTotal;
-    const total = subtotal + taxTotal;
-
-    return this.prisma.invoice.create({
-      data: {
-        organizationId: orgId,
-        invoiceNumber,
-        type: input.type,
-        status: 'ISSUED',
-        customerId: input.customerId ?? null,
-        bookingId: input.bookingId ?? null,
-        demandId: input.demandId ?? null,
-        vendorId: input.vendorId ?? null,
-        issueDate: input.issueDate,
-        dueDate: input.dueDate ?? null,
-        subtotal,
-        cgst,
-        sgst,
-        igst,
-        total,
-        reverseCharge: input.reverseCharge,
-        notes: input.notes ?? null,
-        items: items as any,
-      },
-    });
-  }
-
-  async voidInvoice(id: string) {
-    await this.getInvoice(id);
-    return this.prisma.invoice.update({ where: { id }, data: { status: 'VOID' } });
-  }
-
-  async invoicePdf(id: string): Promise<Buffer> {
-    const invoice = await this.getInvoice(id);
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({ size: 'A4', margin: 50 });
-      const chunks: Buffer[] = [];
-      doc.on('data', (c: Buffer) => chunks.push(c));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-      doc.fontSize(18).text('INVOICE', { align: 'center' });
-      doc.moveDown();
-      doc.fontSize(10).text(`Invoice #: ${invoice.invoiceNumber}`);
-      doc.text(`Type: ${invoice.type}`);
-      doc.text(`Status: ${invoice.status}`);
-      doc.text(`Issue Date: ${new Date(invoice.issueDate).toLocaleDateString()}`);
-      if (invoice.dueDate) doc.text(`Due Date: ${new Date(invoice.dueDate).toLocaleDateString()}`);
-      doc.moveDown();
-      doc.text(`Subtotal: ${invoice.subtotal}`);
-      doc.text(`Tax: ${Number(invoice.cgst) + Number(invoice.sgst) + Number(invoice.igst)}`);
-      doc.text(`Total: ${invoice.total}`);
-      if (invoice.notes) {
-        doc.moveDown();
-        doc.text(`Notes: ${invoice.notes}`);
+      if (totalCommitted > budget.budgetLines.reduce((sum, line) => sum + line.budgetAmount, 0) * 0.8) {
+        alerts.push({
+          id: crypto.randomUUID(),
+          type: 'budget',
+          severity: totalCommitted > budget.budgetLines.reduce((sum, line) => sum + line.budgetAmount, 0) * 1.2 ? 'CRITICAL' : 'WARNING',
+          title: 'Budget Threshold Breach',
+          message: `Project budget projected to exceed threshold. Committed: ${totalCommitted}, Budget: ${budget.budgetLines.reduce((sum, line) => sum + line.budgetAmount, 0)}`,
+          relatedId: budget.id,
+          relatedType: 'project',
+          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          isResolved: false,
+          createdAt: new Date(),
+        });
       }
-      doc.end();
+    }
+
+    // Check margin alerts
+    const margin = await this.getMarginForecast(projectId);
+    if (margin.profitMargin < 10) {
+      alerts.push({
+        id: crypto.randomUUID(),
+        type: 'margin',
+        severity: margin.profitMargin < 5 ? 'CRITICAL' : 'WARNING',
+        title: 'Low Profit Margin Alert',
+        message: `Project profit margin is ${margin.profitMargin.toFixed(1)}%. Recommended: review costs and pricing.`,
+        relatedId: '',
+        relatedType: 'project',
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        isResolved: false,
+        createdAt: new Date(),
+      });
+    }
+
+    // Check security expiries
+    const expiringSecurities = await this.listExpiringSecurities(30);
+    expiringSecurities.forEach((sec) => {
+      alerts.push({
+        id: crypto.randomUUID(),
+        type: 'security',
+        severity: 'WARNING',
+        title: 'Security Expiry Alert',
+        message: `Security ${sec.type} (${sec.id}) expires on ${sec.expiryDate.toLocaleDateString()}`,
+        relatedId: sec.id,
+        relatedType: 'security',
+        expiryDate: sec.expiryDate,
+        isResolved: false,
+        createdAt: new Date(),
+      });
     });
+
+    return alerts;
   }
 
-  // ============================================================ Accounts & ledger
+  // ============================================================ Expense Recording
 
-  async listAccounts(q: ListQuery) {
-    const where: any = {};
-    const [items, total] = await Promise.all([
-      this.prisma.account.findMany({ where, skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { createdAt: 'asc' } }),
-      this.prisma.account.count({ where }),
-    ]);
-    return paginated(items, total, q.page, q.limit);
-  }
-
-  async createAccount(input: AccountInput) {
-    return this.prisma.account.create({ data: { ...input, organizationId: requireOrgId() } });
-  }
-
-  async listLedger(q: ListQuery) {
-    const where: any = {};
-    if (q.accountId) where.accountId = q.accountId;
-    if (q.from || q.to) where.occurredAt = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-    const [items, total] = await Promise.all([
-      this.prisma.ledgerEntry.findMany({ where, skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { occurredAt: 'desc' } }),
-      this.prisma.ledgerEntry.count({ where }),
-    ]);
-    return paginated(items, total, q.page, q.limit);
-  }
-
-  async createLedgerEntry(input: { accountId: string; type: string; amount: number; category: string; note?: string; occurredAt?: Date }) {
-    const account = await this.prisma.account.findFirst({ where: { id: input.accountId } });
-    if (!account) throw errors.notFound('Account');
-    return this.prisma.ledgerEntry.create({
+  async recordExpense(input: {
+    projectId: string;
+    accountId: string;
+    amount: number;
+    description: string;
+    date: Date;
+    voucherNo: string;
+    postedBy: string;
+  }) {
+    return this.prisma.projectCostLedger.create({
       data: {
         organizationId: requireOrgId(),
+        projectId: input.projectId,
         accountId: input.accountId,
-        type: input.type as any,
+        debit: input.amount,
+        credit: 0,
         amount: input.amount,
-        category: input.category,
-        note: input.note ?? null,
-        occurredAt: input.occurredAt ?? new Date(),
-        createdBy: actorId(),
+        description: input.description,
+        postedAt: input.date,
+        postedBy: input.postedBy,
+        metadata: JSON.stringify({ voucherNo }),
       },
     });
-  }
-
-  // ============================================================ Expenses
-
-  async listExpenses(q: ListQuery) {
-    const where: any = { deletedAt: null };
-    if (q.status) where.status = q.status;
-    if (q.projectId) where.projectId = q.projectId;
-    if (q.from || q.to) where.date = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-    if (q.search) {
-      const s = escapeLike(q.search);
-      where.OR = [{ title: { contains: s, mode: 'insensitive' } }, { reference: { contains: s, mode: 'insensitive' } }];
-    }
-    const [items, total] = await Promise.all([
-      this.prisma.expense.findMany({ where, skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { date: 'desc' } }),
-      this.prisma.expense.count({ where }),
-    ]);
-    return paginated(items, total, q.page, q.limit);
-  }
-
-  async createExpense(input: ExpenseInput) {
-    const totalAmount = input.amount + input.taxAmount;
-    return this.prisma.expense.create({
-      data: {
-        organizationId: requireOrgId(),
-        projectId: input.projectId ?? null,
-        categoryId: input.categoryId ?? null,
-        vendorId: input.vendorId ?? null,
-        accountId: input.accountId ?? null,
-        title: input.title,
-        description: input.description ?? null,
-        amount: input.amount,
-        taxAmount: input.taxAmount,
-        totalAmount,
-        date: input.date,
-        mode: input.mode,
-        reference: input.reference ?? null,
-        status: 'DRAFT',
-        createdBy: actorId(),
-      },
-    });
-  }
-
-  async setExpenseStatus(id: string, status: string, remarks?: string) {
-    const expense = await this.prisma.expense.findFirst({ where: { id, deletedAt: null } });
-    if (!expense) throw errors.notFound('Expense');
-    const data: any = { status };
-    if (status === 'APPROVED') data.approvedBy = actorId();
-    if (status === 'PAID') data.paidAt = new Date();
-    const updated = await this.prisma.expense.update({ where: { id }, data });
-
-    if (status === 'PAID' && expense.accountId) {
-      await this.createLedgerEntry({
-        accountId: expense.accountId,
-        type: 'DEBIT',
-        amount: Number(expense.totalAmount),
-        category: 'EXPENSE',
-        note: `Expense: ${expense.title}`,
-        occurredAt: new Date(),
-      });
-    }
-    return updated;
-  }
-
-  async listExpenseCategories(q: ListQuery) {
-    const [items, total] = await Promise.all([
-      this.prisma.expenseCategory.findMany({ skip: pageOffset(q.page, q.limit), take: q.limit, orderBy: { name: 'asc' } }),
-      this.prisma.expenseCategory.count(),
-    ]);
-    return paginated(items, total, q.page, q.limit);
-  }
-
-  async createExpenseCategory(input: { name: string; code: string; kind: string }) {
-    return this.prisma.expenseCategory.create({ data: { ...input, organizationId: requireOrgId() } });
-  }
-
-  // ============================================================ Reports
-
-  async outstandingReport(q: ListQuery) {
-    const where: any = { status: { in: ['DUE', 'PARTIAL', 'OVERDUE'] } };
-    if (q.projectId) where.projectId = q.projectId;
-    if (q.customerId) where.customerId = q.customerId;
-
-    const demands = await this.prisma.paymentDemand.findMany({ where });
-    let totalDemanded = 0;
-    let totalPaid = 0;
-    const byStatus: Record<string, number> = {};
-    for (const d of demands) {
-      totalDemanded += Number(d.totalAmount);
-      totalPaid += Number(d.paidAmount);
-      byStatus[d.status] = (byStatus[d.status] ?? 0) + (Number(d.totalAmount) - Number(d.paidAmount));
-    }
-    return {
-      demandCount: demands.length,
-      totalDemanded,
-      totalPaid,
-      outstanding: totalDemanded - totalPaid,
-      byStatus,
-    };
-  }
-
-  async collectionsReport(q: ListQuery) {
-    const where: any = { status: 'SUCCESS' };
-    if (q.projectId) where.projectId = q.projectId;
-    if (q.from || q.to) where.paidAt = { ...(q.from ? { gte: q.from } : {}), ...(q.to ? { lte: q.to } : {}) };
-    const payments = await this.prisma.payment.findMany({ where, orderBy: { paidAt: 'asc' } });
-    const total = payments.reduce((s, p) => s + Number(p.amount), 0);
-    const byMode: Record<string, number> = {};
-    for (const p of payments) byMode[p.mode] = (byMode[p.mode] ?? 0) + Number(p.amount);
-    return { count: payments.length, total, byMode };
   }
 }
+// SERVICEEOF

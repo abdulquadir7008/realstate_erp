@@ -1607,6 +1607,69 @@ export class BudgetService {
     }
   }
 
+  async checkPurchaseOrderBudget(projectId: string, amount: number) {
+    const budget = await this.findOperationalBudget(projectId);
+    if (!budget) {
+      // No budget configured, require approval for any amount
+      return { approvalRequired: true, minThreshold: 0, maxThreshold: amount };
+    }
+    
+    // Find applicable budget thresholds (check budgetId first, then projectId, then org-level)
+    const threshold = await this.prisma.budgetThreshold.findFirst({
+      where: {
+        OR: [
+          { budgetId: budget.id },
+          { projectId: budget.projectId, budgetId: null },
+          { budgetId: null, projectId: null },
+        ],
+        isActive: true,
+      },
+      orderBy: {
+        budgetId: 'desc',
+      },
+    });
+    
+    const warningPercent = toNumber(threshold?.warningPercent ?? 80);
+    const criticalPercent = toNumber(threshold?.criticalPercent ?? 95);
+    const hardStopPercent = toNumber(threshold?.hardStopPercent ?? 100);
+    
+    // Get committed amounts from budget commitments
+    const committed = await this.prisma.budgetCommitment.count({
+      where: { budgetId: budget.id, status: { in: ['COMMITTED', 'PARTIALLY_CONSUMED'] } },
+    });
+    
+    const totalBudgetAmount = toNumber(budget.totalActual ?? budget.totalPlanned ?? 0);
+    const available = Math.max(0, totalBudgetAmount - committed);
+    
+    const thresholdWarning = warningPercent / 100;
+    const thresholdCritical = criticalPercent / 100;
+    const thresholdHard = hardStopPercent / 100;
+    
+    const warningLimit = available * thresholdWarning;
+    const criticalLimit = available * thresholdCritical;
+    const hardLimit = available * thresholdHard;
+    
+    let approvalRequired = false;
+    let minThreshold = 0;
+    let maxThreshold = amount;
+    
+    if (amount > hardLimit) {
+      approvalRequired = true;
+      minThreshold = hardLimit;
+      maxThreshold = amount;
+    } else if (amount > criticalLimit) {
+      approvalRequired = true;
+      minThreshold = criticalLimit;
+      maxThreshold = amount;
+    } else if (amount > warningLimit) {
+      approvalRequired = true;
+      minThreshold = warningLimit;
+      maxThreshold = amount;
+    }
+    
+    return { approvalRequired, minThreshold, maxThreshold };
+  }
+
   async syncGoodsReceiptLedger(input: {
     id: string;
     poId: string;

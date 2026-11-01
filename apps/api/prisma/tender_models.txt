@@ -1,0 +1,61 @@
+
+model Tender {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String           @db.Uuid
+  tenderNo          String
+  title             String
+  source            TenderSource     @default(INTERNAL_REFERRAL)
+  clientName        String?
+  clientContact     String?
+  issuingAuthority  String?
+  estimatedValue    Decimal          @default(0) @db.Decimal(18, 2)
+  emdAmount         Decimal          @default(0) @db.Decimal(18, 2)
+  currency          String           @default("INR")
+  tenderFee         Decimal          @default(0) @db.Decimal(18, 2)
+  publishDate       DateTime?
+  submissionDueDate DateTime?
+  openingDate       DateTime?
+  preBidMeetingDate DateTime?
+  status            TenderStatus     @default(DRAFT)
+  stage             String?
+  projectId         String?          @db.Uuid
+  leadId            String?          @db.Uuid
+  assignedToId      String?          @db.Uuid
+  priority          String?
+  location          String?
+  description       String?
+  eligibilityNotes  String?
+  tags              String[]
+  isActive          Boolean          @default(true)
+  wonAt             DateTime?
+  lostAt            DateTime?
+  outcomeReason     TenderOutcomeReason?
+  outcomeNotes      String?
+  goDecision        TenderGoDecision @default(PENDING)
+  goDecisionBy      String?          @db.Uuid
+  goDecisionAt      DateTime?
+  goDecisionNotes   String?
+  approvalInstanceId String?         @db.Uuid
+  submittedBy       String?          @db.Uuid
+  submittedAt       DateTime?
+  createdBy         String?          @db.Uuid
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  lead         Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  assignedTo   User?             @relation("TenderAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  boqs         BOQ[]
+  qualifications TenderQualification[]
+  risks        TenderRisk[]
+  stages       TenderStage[]
+  checklists   TenderChecklistItem[]
+  documents    Document[]
+  activities   TenderActivity[]
+
+  @@unique([organizationId, tenderNo])
+  @@index([organizationId, status, submissionDueDate])
+  @@index([projectId])
+}

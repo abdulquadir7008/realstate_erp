@@ -1,0 +1,35 @@
+﻿
+> realestate-erp@1.0.0 typecheck F:\AI_Project\realstate_erp
+> pnpm -r typecheck
+
+Scope: 4 of 5 workspace projects
+apps/mobile typecheck$ tsc --noEmit
+apps/web typecheck$ tsc --noEmit
+packages/shared typecheck$ tsc -p tsconfig.json --noEmit
+packages/shared typecheck: Done
+apps/web typecheck: Done
+apps/mobile typecheck: Done
+apps/api typecheck$ tsc --noEmit
+apps/api typecheck: src/modules/modules.module.ts(17,31): error TS2307: Cannot find module './tenders/tenders.module' or its corresponding type declarations.
+apps/api typecheck: src/modules/tender/dtos.ts(2,3): error TS2564: Property 'title' has no initializer and is not definitely assigned in the constructor.
+apps/api typecheck: src/modules/tender/tender.controller.ts(5,32): error TS2307: Cannot find module '../common/dto/page-options.dto' or its corresponding type declarations.
+apps/api typecheck: src/modules/tender/tender.controller.ts(6,39): error TS2307: Cannot find module '../common/utils/tenant' or its corresponding type declarations.
+apps/api typecheck: src/modules/tender/tender.controller.ts(8,47): error TS2307: Cannot find module '../common/dto/page-options.dto' or its corresponding type declarations.
+apps/api typecheck: src/modules/tender/tender.controller.ts(162,31): error TS2339: Property 'addDocument' does not exist on type 'TenderService'.
+apps/api typecheck: src/modules/tender/tender.service.ts(4,39): error TS2307: Cannot find module '../common/utils/tenant' or its corresponding type declarations.
+apps/api typecheck: src/modules/tender/tender.service.ts(5,51): error TS2307: Cannot find module '../common/utils/pagination' or its corresponding type declarations.
+apps/api typecheck: src/modules/tender/tender.service.ts(8,32): error TS2307: Cannot find module '../common/dto/page-options.dto' or its corresponding type declarations.
+apps/api typecheck: src/modules/tender/tender.service.ts(188,17): error TS2322: Type '{ status: string; organizationId: string; name: string; id: string; createdAt: Date; updatedAt: Date; completedAt: Date | null; remarks: string | null; sequence: number; ... 4 more ...; completedBy: string | null; }' is not assignable to type 'string | NullableStringFieldUpdateOperationsInput | null | undefined'.
+apps/api typecheck: src/modules/tender/tender.service.ts(227,9): error TS2322: Type 'string' is not assignable to type 'TenderQualificationStatus | EnumTenderQualificationStatusFieldUpdateOperationsInput | undefined'.
+apps/api typecheck: src/modules/tender/tender.service.ts(242,9): error TS2322: Type 'string' is not assignable to type 'TenderRiskLevel | undefined'.
+apps/api typecheck: src/modules/tender/tender.service.ts(243,27): error TS2339: Property 'probability' does not exist on type '{ risk: string; category?: string | undefined; level?: string | undefined; contingency?: number | undefined; }'.
+apps/api typecheck: src/modules/tender/tender.service.ts(244,22): error TS2339: Property 'impact' does not exist on type '{ risk: string; category?: string | undefined; level?: string | undefined; contingency?: number | undefined; }'.
+apps/api typecheck: src/modules/tender/tender.service.ts(386,34): error TS2365: Operator '>' cannot be applied to types 'Decimal' and 'number'.
+apps/api typecheck: src/modules/tender/tender.service.ts(388,9): error TS2322: Type '{ code: string; name: string; description: string; projectId: string; status: "DRAFT"; baselineStatus: "PROPOSED"; totalAmount: Decimal; }' is not assignable to type '(Without<BOQCreateInput, BOQUncheckedCreateInput> & BOQUncheckedCreateInput) | (Without<BOQUncheckedCreateInput, BOQCreateInput> & BOQCreateInput)'.
+apps/api typecheck:   Type '{ code: string; name: string; description: string; projectId: string; status: "DRAFT"; baselineStatus: "PROPOSED"; totalAmount: Decimal; }' is not assignable to type 'Without<BOQCreateInput, BOQUncheckedCreateInput> & BOQUncheckedCreateInput'.
+apps/api typecheck:     Property 'organizationId' is missing in type '{ code: string; name: string; description: string; projectId: string; status: "DRAFT"; baselineStatus: "PROPOSED"; totalAmount: Decimal; }' but required in type 'BOQUncheckedCreateInput'.
+apps/api typecheck: Failed
+F:\AI_Project\realstate_erp\apps\api:
+ΓÇëERR_PNPM_RECURSIVE_RUN_FIRST_FAILΓÇë @re/api@1.0.0 typecheck: `tsc --noEmit`
+Exit status 2
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 2.

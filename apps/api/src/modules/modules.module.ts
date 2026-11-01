@@ -14,6 +14,7 @@ import { HrModule } from './hr/hr.module';
 import { ProcurementModule } from './procurement/procurement.module';
 import { BoqModule } from './boq/boq.module';
 import { ConstructionModule } from './construction/construction.module';
+import { TenderModule } from './tender/tender.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { DocumentsModule } from './documents/documents.module';
 import { WorkflowsModule } from './workflows/workflows.module';
@@ -42,16 +43,17 @@ import { AuditModule } from './audit/audit.module';
     ProcurementModule,
     BoqModule,
     ConstructionModule,
+    TenderModule,
     TicketsModule,
     DocumentsModule,
     WorkflowsModule,
-    ApprovalModule,
-    BudgetModule,
-    AuditModule,
     NotificationsModule,
     ReportsModule,
     AiModule,
     PortalModule,
+    ApprovalModule,
+    BudgetModule,
+    AuditModule,
   ],
 })
 export class ModulesModule {}

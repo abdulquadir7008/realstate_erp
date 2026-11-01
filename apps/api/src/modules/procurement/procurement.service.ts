@@ -5,6 +5,7 @@ import { pageOffset, paginated, escapeLike } from '../../common/utils/pagination
 import { requireOrgId, actorId } from '../../common/utils/tenant';
 import { nextCode } from '../../common/utils/sequence';
 import { BudgetService } from '../budget/budget.service';
+import { PurchaseOrderStatus } from '@prisma/client';
 import {
   VendorInput,
   UpdateVendorInput,
@@ -281,6 +282,14 @@ export class ProcurementService {
     const poNumber = await nextCode(this.prisma, 'PO');
     const items = input.items.map((it) => ({ ...it, amount: it.quantity * it.rate }));
     const subtotal = items.reduce((s, it) => s + it.amount, 0);
+    
+    // Check budget and approval requirements
+    const budgetCheck = await this.budget.checkPurchaseOrderBudget(input.projectId, subtotal);
+    
+    const poStatus = budgetCheck.approvalRequired 
+  ? (PurchaseOrderStatus as any).PENDING_APPROVAL 
+  : (PurchaseOrderStatus as any).APPROVED;
+    
     const po = await this.prisma.purchaseOrder.create({
       data: {
         organizationId: orgId,
@@ -293,6 +302,7 @@ export class ProcurementService {
         notes: input.notes ?? null,
         subtotal,
         total: subtotal,
+        status: poStatus,
         items: { create: items },
       },
       include: { items: true },

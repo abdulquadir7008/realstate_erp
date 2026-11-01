@@ -1,0 +1,100 @@
+
+model TenderQualification {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                    @db.Uuid
+  tenderId       String                    @db.Uuid
+  criterion      String
+  requirement    String?
+  weight         Decimal                   @default(0) @db.Decimal(5, 2)
+  companyStatus  TenderQualificationStatus @default(PENDING)
+  evidence       String?
+  remarks        String?
+  verifiedBy     String?                   @db.Uuid
+  verifiedAt     DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId])
+}
+
+model TenderRisk {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @db.Uuid
+  tenderId       String         @db.Uuid
+  risk           String
+  category       String?
+  level          TenderRiskLevel @default(MEDIUM)
+  probability    String?
+  impact         String?
+  mitigation     String?
+  contingency    Decimal        @default(0) @db.Decimal(18, 2)
+  ownerId        String?        @db.Uuid
+  dueDate        DateTime?
+  status         String?        @default("OPEN")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId])
+}
+
+model TenderStage {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  tenderId       String    @db.Uuid
+  name           String
+  sequence       Int       @default(0)
+  status         String    @default("PENDING")
+  isMandatory    Boolean   @default(true)
+  plannedAt      DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  completedBy    String?   @db.Uuid
+  remarks        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId, sequence])
+}
+
+model TenderChecklistItem {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  tenderId       String    @db.Uuid
+  item           String
+  category       String?
+  isRequired     Boolean   @default(true)
+  isDone         Boolean   @default(false)
+  doneBy         String?   @db.Uuid
+  doneAt         DateTime?
+  dueDate        DateTime?
+  remarks        String?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId])
+}
+
+model TenderActivity {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  tenderId       String   @db.Uuid
+  type           String
+  title          String
+  description    String?
+  performedBy    String?  @db.Uuid
+  performedAt    DateTime @default(now())
+  metadata       Json     @default("{}")
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId, performedAt])
+}

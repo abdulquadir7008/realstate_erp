@@ -17,5 +17,7 @@ export function currentUserId(): string | null {
 }
 
 export function runWithTenant<T>(store: TenantStore, fn: () => T): T {
-  return tenantStorage.run(store, fn);
+  // Use enterWith instead of run to ensure context persists across async operations
+  tenantStorage.enterWith(store);
+  return fn();
 }

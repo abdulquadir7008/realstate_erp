@@ -1,63 +1,108 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { z } from 'zod';
-import { ApiTags } from '@nestjs/swagger';
+import 'reflect-metadata';
+import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
-import { RequirePermissions } from '../../common/decorators';
-import { ZodValidationPipe, parseQuery } from '../../common/pipes/zod-validation.pipe';
-import { paginationSchema, documentUploadSchema, documentVersionSchema, DocumentUploadInput, DocumentVersionInput } from '@re/shared';
+import { DocumentListQuery } from './documents.service';
+import { AuthGuard, RolesGuard } from '../../common/guards';
 
-const documentQuerySchema = paginationSchema.extend({
-  folder: z.string().optional(),
-  projectId: z.string().uuid().optional(),
-  customerId: z.string().uuid().optional(),
-  bookingId: z.string().uuid().optional(),
-  visibility: z.string().optional(),
-});
-const updateDocumentSchema = z.object({
-  name: z.string().trim().min(1).max(200).optional(),
-  folder: z.string().optional(),
-  visibility: z.enum(['INTERNAL', 'CUSTOMER']).optional(),
-  expiresAt: z.coerce.date().optional().nullable(),
-});
-
-@ApiTags('Documents')
 @Controller('documents')
+@UseGuards(AuthGuard, RolesGuard)
 export class DocumentsController {
-  constructor(private readonly service: DocumentsService) {}
+  constructor(private readonly documentsService: DocumentsService) {}
+
+  // ---------------- document list
 
   @Get()
-  @RequirePermissions('document:read')
-  list(@Query() q: unknown) {
-    return this.service.list(parseQuery(documentQuerySchema, q));
+  async list(@Query() q: DocumentListQuery) {
+    return this.documentsService.list(q);
   }
 
-  @Post()
-  @RequirePermissions('document:create')
-  create(@Body(new ZodValidationPipe(documentUploadSchema)) body: DocumentUploadInput) {
-    return this.service.create(body);
-  }
+  // ---------------- document get with version history
 
   @Get(':id')
-  @RequirePermissions('document:read')
-  get(@Param('id') id: string) {
-    return this.service.get(id);
+  async get(@Param('id') id: string) {
+    return this.documentsService.get(id);
   }
 
-  @Patch(':id')
-  @RequirePermissions('document:update')
-  update(@Param('id') id: string, @Body(new ZodValidationPipe(updateDocumentSchema)) body: z.infer<typeof updateDocumentSchema>) {
-    return this.service.update(id, body);
+  // ---------------- document create
+
+  @Post()
+  async create(@Body() input: {
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    storageKey: string;
+    folder?: string;
+    projectId?: string;
+    customerId?: string;
+    bookingId?: string;
+    tags?: string[];
+    visibility?: string;
+  }) {
+    return this.documentsService.create(input);
   }
+
+  // ---------------- document update metadata
+
+  @Put(':id')
+  async update(@Param('id') id: string, @Body() input: UpdateDocumentInput) {
+    return this.documentsService.update(id, input);
+  }
+
+  // ---------------- add new version
 
   @Post(':id/versions')
-  @RequirePermissions('document:create')
-  addVersion(@Param('id') id: string, @Body(new ZodValidationPipe(documentVersionSchema)) body: DocumentVersionInput) {
-    return this.service.addVersion(id, body);
+  async addVersion(@Param('id') id: string, @Body() input: {
+    fileName: string;
+    mimeType: string;
+    sizeBytes: number;
+    storageKey: string;
+    note?: string;
+  }) {
+    return this.documentsService.addVersion(id, input);
   }
 
+  // ---------------- list document versions
+
+  @Get(':id/versions')
+  async listVersions(@Param('id') id: string) {
+    return this.documentsService.listVersions(id);
+  }
+
+  // ---------------- add tag
+
+  @Post(':id/tags')
+  async addTag(@Param('id') id: string, @Body() tag: string) {
+    return this.documentsService.addTag(id, tag);
+  }
+
+  // ---------------- remove tag
+
+  @Delete(':id/tags/:tag')
+  async removeTag(@Param('id') id: string, @Param('tag') tag: string) {
+    return this.documentsService.removeTag(id, tag);
+  }
+
+  // ---------------- search by tag
+
+  @Get('tag/:tag')
+  async searchByTag(@Param('tag') tag: string) {
+    return this.documentsService.searchByTag(tag);
+  }
+
+  // ---------------- document remove (soft delete)
+
   @Delete(':id')
-  @RequirePermissions('document:delete')
-  remove(@Param('id') id: string) {
-    return this.service.remove(id);
+  async remove(@Param('id') id: string) {
+    return this.documentsService.remove(id);
+  }
+
+  // ---------------- version rollback
+
+  @Post(':id/rollback')
+  async rollbackVersion(@Param('id') id: string, @Body() input: {
+    targetVersion: number;
+    rolledBy: string;
+  }) {
+    return this.documentsService.rollbackVersion(id, input.targetVersion, input.rolledBy);
   }
 }

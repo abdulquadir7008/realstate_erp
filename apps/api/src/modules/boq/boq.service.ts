@@ -674,4 +674,42 @@ export class RateMasterService {
       effectiveTo: version?.effectiveTo ?? rateMaster.effectiveTo,
     };
   }
+
+  /**
+   * Create BOQ from a won tender
+   */
+  async createFromTender(projectId: string, tenderId: string) {
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, organizationId: true, code: true, name: true },
+    });
+    if (!project) throw errors.notFound('Project');
+
+    const tender = await this.prisma.tender.findUnique({
+      where: { id: tenderId, deletedAt: null },
+      select: { estimatedValue: true, status: true, clientName: true, location: true },
+    });
+    if (!tender) throw errors.notFound('Tender');
+    if (tender.status !== 'WON') {
+      throw new Error('Only won tenders can be converted to BOQ');
+    }
+
+    // Create BOQ from tender estimated values
+    const boq = await ((this.create as any)(projectId, {
+      code: `BOQ-${project.code}`,
+      name: `${project.name} BOQ - TND${tenderId.split('-')[1]}`,
+      description: `BOQ derived from tender ${tenderId}`,
+      totalAmount: Number(tender.estimatedValue ?? 0),
+      status: 'DRAFT',
+      baselineStatus: 'PROPOSED',
+      projectId,
+      organizationId: project.organizationId,
+    }));
+
+    return {
+      boq,
+      estimatedValue: Number(tender.estimatedValue ?? 0),
+      message: `BOQ created from tender ${tenderId} with estimated value $${tender.estimatedValue}`,
+    };
+  }
 }

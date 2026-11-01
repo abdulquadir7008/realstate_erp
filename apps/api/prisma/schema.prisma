@@ -298,6 +298,8 @@ enum PurchaseOrderStatus {
   PARTIAL
   RECEIVED
   CANCELLED
+  PENDING_APPROVAL
+  APPROVED
 }
 
 enum StockMoveType {
@@ -499,6 +501,8 @@ model Organization {
   deletedAt      DateTime?
 
   users          User[]
+  tenders        Tender[]
+  leads          Lead[]
   roles          Role[]
   branches       Branch[]
   departments     Department[]
@@ -598,6 +602,7 @@ model User {
   refreshTokens RefreshToken[]
   ledgers       LedgerEntry[]  @relation("ledgerCreator")
   notifications  Notification[]
+  assignedTenders Tender[] @relation("TenderAssignedTo")
 
   @@index([organizationId, status])
 }
@@ -880,6 +885,7 @@ model Project {
   sites         Site[]
   wbs           WBS[]
   boqs          BOQ[]
+  tenders       Tender[]
   milestones    ProjectMilestone[]
   units         Unit[]
   tasks         ConstructionTask[]
@@ -1025,7 +1031,8 @@ model WBSVersion {
 model BOQ {
   id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String @db.Uuid
-  projectId      String     @db.Uuid
+  projectId      String?    @db.Uuid
+  tenderId       String?    @db.Uuid
   wbsId          String?    @db.Uuid
   code           String
   name           String
@@ -1041,13 +1048,15 @@ model BOQ {
   deletedAt      DateTime?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  project      Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tender       Tender?     @relation(fields: [tenderId], references: [id], onDelete: SetNull)
   wbs          WBS?         @relation(fields: [wbsId], references: [id], onDelete: SetNull)
   lines        BOQLine[]
   versions     BOQVersion[]
 
   @@unique([projectId, code])
   @@index([organizationId, projectId, status])
+  @@index([tenderId])
 }
 
 model BOQLine {
@@ -1237,6 +1246,7 @@ model Unit {
 model Lead {
   id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   organizationId String @db.Uuid
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   leadNumber     String
   name           String
   email          String?
@@ -1265,7 +1275,8 @@ model Lead {
   deletedAt      DateTime?
 
   activities LeadActivity[]
-  followUps  FollowUp[]
+  tenders      Tender[]
+  followUps    FollowUp[]
 
   @@index([organizationId, status])
   @@index([organizationId, assignedTo])
@@ -1997,6 +2008,7 @@ model Document {
   vendorId       String?          @db.Uuid
   leadId         String?          @db.Uuid
   employeeId     String?          @db.Uuid
+  tenderId       String?          @db.Uuid
   groupId        String           @db.Uuid
   name           String
   fileName       String
@@ -2015,9 +2027,11 @@ model Document {
   deletedAt      DateTime?
 
   versions DocumentVersion[]
+  tender   Tender?          @relation(fields: [tenderId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, folder])
   @@index([organizationId, projectId])
+  @@index([tenderId])
   @@index([organizationId, customerId])
   @@index([groupId, version])
   @@index([organizationId, expiresAt])
@@ -2779,3 +2793,218 @@ model BudgetAlert {
 
 
 
+
+enum TenderSource {
+  GEM
+  CPPP
+  UTILITY_PORTAL
+  INTERNAL_REFERRAL
+  OTHER
+}
+
+enum TenderStatus {
+  DRAFT
+  IN_REVIEW
+  QUALIFICATION
+  GO_DECISION
+  COSTING
+  SUBMISSION_READY
+  SUBMITTED
+  OPENED
+  EVALUATED
+  WON
+  LOST
+  WITHDRAWN
+  CANCELLED
+}
+
+enum TenderQualificationStatus {
+  COMPLIANT
+  PARTIALLY_COMPLIANT
+  NON_COMPLIANT
+  PENDING
+}
+
+enum TenderGoDecision {
+  GO
+  NO_GO
+  PENDING
+}
+
+enum TenderRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TenderOutcomeReason {
+  PRICE
+  TECHNICAL
+  TIMELINES
+  CAPABILITY
+  COMPETITOR
+  SCOPE
+  OTHER
+}
+
+model Tender {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String           @db.Uuid
+  tenderNo          String
+  title             String
+  source            TenderSource     @default(INTERNAL_REFERRAL)
+  clientName        String?
+  clientContact     String?
+  issuingAuthority  String?
+  estimatedValue    Decimal          @default(0) @db.Decimal(18, 2)
+  emdAmount         Decimal          @default(0) @db.Decimal(18, 2)
+  currency          String           @default("INR")
+  tenderFee         Decimal          @default(0) @db.Decimal(18, 2)
+  publishDate       DateTime?
+  submissionDueDate DateTime?
+  openingDate       DateTime?
+  preBidMeetingDate DateTime?
+  status            TenderStatus     @default(DRAFT)
+  stage             String?
+  projectId         String?          @db.Uuid
+  leadId            String?          @db.Uuid
+  assignedToId      String?          @db.Uuid
+  priority          String?
+  location          String?
+  description       String?
+  eligibilityNotes  String?
+  tags              String[]
+  isActive          Boolean          @default(true)
+  wonAt             DateTime?
+  lostAt            DateTime?
+  outcomeReason     TenderOutcomeReason?
+  outcomeNotes      String?
+  goDecision        TenderGoDecision @default(PENDING)
+  goDecisionBy      String?          @db.Uuid
+  goDecisionAt      DateTime?
+  goDecisionNotes   String?
+  approvalInstanceId String?         @db.Uuid
+  submittedBy       String?          @db.Uuid
+  submittedAt       DateTime?
+  createdBy         String?          @db.Uuid
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?          @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  lead         Lead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  assignedTo   User?             @relation("TenderAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  boqs         BOQ[]
+  qualifications TenderQualification[]
+  risks        TenderRisk[]
+  stages       TenderStage[]
+  checklists   TenderChecklistItem[]
+  documents    Document[]
+  activities   TenderActivity[]
+
+  @@unique([organizationId, tenderNo])
+  @@index([organizationId, status, submissionDueDate])
+  @@index([projectId])
+}
+
+model TenderQualification {
+  id             String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String                    @db.Uuid
+  tenderId       String                    @db.Uuid
+  criterion      String
+  requirement    String?
+  weight         Decimal                   @default(0) @db.Decimal(5, 2)
+  companyStatus  TenderQualificationStatus @default(PENDING)
+  evidence       String?
+  remarks        String?
+  verifiedBy     String?                   @db.Uuid
+  verifiedAt     DateTime?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId])
+}
+
+model TenderRisk {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @db.Uuid
+  tenderId       String         @db.Uuid
+  risk           String
+  category       String?
+  level          TenderRiskLevel @default(MEDIUM)
+  probability    String?
+  impact         String?
+  mitigation     String?
+  contingency    Decimal        @default(0) @db.Decimal(18, 2)
+  ownerId        String?        @db.Uuid
+  dueDate        DateTime?
+  status         String?        @default("OPEN")
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId])
+}
+
+model TenderStage {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  tenderId       String    @db.Uuid
+  name           String
+  sequence       Int       @default(0)
+  status         String    @default("PENDING")
+  isMandatory    Boolean   @default(true)
+  plannedAt      DateTime?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  completedBy    String?   @db.Uuid
+  remarks        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId, sequence])
+}
+
+model TenderChecklistItem {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String    @db.Uuid
+  tenderId       String    @db.Uuid
+  item           String
+  category       String?
+  isRequired     Boolean   @default(true)
+  isDone         Boolean   @default(false)
+  doneBy         String?   @db.Uuid
+  doneAt         DateTime?
+  dueDate        DateTime?
+  remarks        String?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId])
+}
+
+model TenderActivity {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String   @db.Uuid
+  tenderId       String   @db.Uuid
+  type           String
+  title          String
+  description    String?
+  performedBy    String?  @db.Uuid
+  performedAt    DateTime @default(now())
+  metadata       Json     @default("{}")
+
+  tender Tender @relation(fields: [tenderId], references: [id], onDelete: Cascade)
+
+  @@index([tenderId, performedAt])
+}
