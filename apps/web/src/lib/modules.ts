@@ -415,7 +415,8 @@ export const MODULES: Record<string, ModuleConfig> = {
       { key: 'paidAt', label: 'Paid At', kind: 'date' },
     ],
     fields: [
-      refField('bookingId', 'Booking', 'bookings', true),
+      refField('customerId', 'Customer', 'customers', true),
+      refField('bookingId', 'Booking', 'bookings'),
       { name: 'amount', label: 'Amount', type: 'currency', required: true },
       { name: 'mode', label: 'Mode', type: 'select', options: opts('CASH', 'BANK_TRANSFER', 'UPI', 'CHEQUE', 'CARD', 'ONLINE', 'WALLET', 'OTHER'), defaultValue: 'BANK_TRANSFER' },
       { name: 'reference', label: 'Reference', type: 'text' },

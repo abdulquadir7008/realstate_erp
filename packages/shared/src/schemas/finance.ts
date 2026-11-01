@@ -21,7 +21,8 @@ export const paymentPlanSchema = z.object({
 });
 
 export const recordPaymentSchema = z.object({
-  bookingId: z.string().uuid(),
+  bookingId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
   amount: z.coerce.number().min(0.01),
   mode: z
     .enum(['CASH', 'BANK_TRANSFER', 'UPI', 'CHEQUE', 'CARD', 'ONLINE', 'WALLET', 'OTHER'])
@@ -45,7 +46,8 @@ export const recordPaymentDirectSchema = recordPaymentSchema.omit({ bookingId: t
 });
 
 export const requestRefundSchema = z.object({
-  bookingId: z.string().uuid(),
+  bookingId: z.string().uuid().optional(),
+  customerId: z.string().uuid().optional(),
   amount: z.coerce.number().min(0.01),
   reason: z.string().trim().min(3).max(500),
 });
