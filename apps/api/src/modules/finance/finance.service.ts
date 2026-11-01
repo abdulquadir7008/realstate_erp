@@ -484,11 +484,22 @@ export class FinanceService {
 
   async recordPayment(input: RecordPaymentInput) {
     const orgId = requireOrgId();
+    // Resolve customerId from booking if not provided
+    let customerId = input.customerId;
+    if (!customerId && input.bookingId) {
+      const booking = await this.prisma.booking.findUnique({
+        where: { id: input.bookingId },
+        select: { customerId: true },
+      });
+      if (!booking) throw errors.notFound('Booking');
+      customerId = booking.customerId;
+    }
+    if (!customerId) throw errors.validation('Customer is required');
     const payment = await this.prisma.payment.create({
       data: {
         organizationId: orgId,
         bookingId: input.bookingId ?? null,
-        customerId: input.customerId,
+        customerId,
         projectId: input.projectId ?? null,
         amount: input.amount,
         mode: input.mode ?? 'BANK_TRANSFER',
