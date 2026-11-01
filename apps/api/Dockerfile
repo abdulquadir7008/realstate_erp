@@ -27,4 +27,4 @@ FROM base AS runtime
 ENV NODE_ENV=production
 COPY --from=build /app ./
 EXPOSE 4010
-CMD ["sh", "-c", "node apps/api/dist/apps/api/src/main.js"]
+CMD ["sh", "-c", "cd /app/apps/api && /app/apps/api/node_modules/.bin/prisma migrate deploy && node /app/apps/api/dist/apps/api/src/main.js"]
