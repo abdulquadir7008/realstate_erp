@@ -707,7 +707,7 @@ export const MODULES: Record<string, ModuleConfig> = {
         itemLabel: 'Item',
         itemFields: [
           refField('materialId', 'Material', 'materials'),
-          { name: 'description', label: 'Description', type: 'text', required: true },
+          { name: 'description', label: 'Description', type: 'text', required: true, colSpan: 2 },
           { name: 'quantity', label: 'Qty', type: 'number', defaultValue: 1 },
           { name: 'unit', label: 'Unit', type: 'text', defaultValue: 'NOS' },
           { name: 'rate', label: 'Rate', type: 'number', required: true },

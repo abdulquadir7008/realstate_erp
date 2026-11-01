@@ -352,9 +352,9 @@ function ItemsEditor({
               Remove
             </button>
           </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {itemFields.map((f) => (
-              <div key={f.name} className="space-y-1">
+              <div key={f.name} className={cn('space-y-1', f.colSpan === 2 ? 'sm:col-span-2' : f.colSpan === 1 ? 'sm:col-span-1' : '')}>
                 <label className="text-xs font-medium">{f.label}</label>
                 {renderControl(f, row[f.name], (n, v) => update(idx, n, v), optMap, setOptions)}
               </div>
